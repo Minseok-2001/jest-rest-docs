@@ -2,7 +2,8 @@ import { DocumentationContext } from '../types';
 
 export class HttpSnippetGenerator {
   async generate(context: DocumentationContext): Promise<string> {
-    const { method, path, requestHeaders, responseHeaders, requestBody, responseBody, statusCode } = context;
+    const { method, path, requestHeaders, responseHeaders, requestBody, responseBody, statusCode } =
+      context;
 
     let snippet = '### HTTP Request\n\n```http\n';
     snippet += `${method} ${path}\n`;
