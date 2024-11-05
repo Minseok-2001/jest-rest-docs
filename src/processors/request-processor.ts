@@ -8,8 +8,8 @@ export class RequestProcessor {
     }
 
     // Add common headers if not present
-    if (!context.requestHeaders.has('Accept')) {
-      context.requestHeaders.set('Accept', 'application/json');
+    if (!context.requestHeaders?.has('Accept')) {
+      context.requestHeaders?.set('Accept', 'application/json');
     }
 
     // Process path parameters
