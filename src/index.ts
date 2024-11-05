@@ -231,7 +231,7 @@ export class JestRestDocs {
     |------|-------------|------|----------|
     ${context.pathParams
       .map(
-        (param) =>
+        (param: { name: any; description: any; type: any; required: any }) =>
           `| ${param.name} | ${param.description} | ${param.type} | ${param.required ? 'Yes' : 'No'} |`
       )
       .join('\n')}
@@ -287,7 +287,10 @@ export class JestRestDocs {
     | Field | Type | Description |
     |-------|------|-------------|
     ${context.responseFields
-      .map((field) => `| ${field.path} | ${field.type} | ${field.description} |`)
+      .map(
+        (field: { path: any; type: any; description: any }) =>
+          `| ${field.path} | ${field.type} | ${field.description} |`
+      )
       .join('\n')}
     `
         : ''
