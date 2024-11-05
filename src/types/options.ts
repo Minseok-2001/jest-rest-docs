@@ -1,4 +1,4 @@
-import {DocumentationContext} from "./context";
+import { DocumentationContext } from './context';
 
 export interface JestRestDocsOptions {
   outputDir: string;

@@ -61,8 +61,8 @@ describe('Example API Tests', () => {
 
         expect(response.data).toHaveProperty('id');
         expect(response.data.name).toBe(newUser.name);
-      },
-    ),
+      }
+    )
   );
 
   it(
@@ -119,7 +119,7 @@ describe('Example API Tests', () => {
         });
 
         expect(response.data.id).toBe(userId);
-      },
-    ),
+      }
+    )
   );
 });
