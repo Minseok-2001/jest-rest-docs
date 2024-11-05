@@ -1,4 +1,4 @@
-import { RequestProcessor } from '../../../src/processors/request-processor';
+import { RequestProcessor } from '../../../src/processors';
 import { DocumentationContext } from '../../../src/types';
 
 describe('RequestProcessor', () => {

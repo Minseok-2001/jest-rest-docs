@@ -1,4 +1,4 @@
-import { HttpSnippetGenerator } from '../../../src/generators/http-snippet';
+import { HttpSnippetGenerator } from '../../../src/generators';
 import { DocumentationContext } from '../../../src/types';
 
 describe('HttpSnippetGenerator', () => {
