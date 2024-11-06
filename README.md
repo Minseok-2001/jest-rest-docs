@@ -2,6 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/jest-rest-docs.svg)](https://badge.fury.io/js/jest-rest-docs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![codecov](https://codecov.io/github/Minseok-2001/jest-rest-docs/graph/badge.svg?token=9F57SFCD68)](https://codecov.io/github/Minseok-2001/jest-rest-docs)
 
 Generate OpenAPI documentation from your Jest API tests - inspired by Spring REST Docs.
 
