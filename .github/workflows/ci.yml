@@ -29,14 +29,14 @@ jobs:
       - name: Run linter
         run: npm run lint
 
-      - name: Run tests
-        run: npm test
-
       - name: Build
         run: npm run build
 
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
+      - name: Run tests with coverage
+        run: npx jest --coverage
+
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
