@@ -1,4 +1,4 @@
-import { sanitizePath } from '../../../src/utils';
+import { sanitizePath } from '../../../lib/utils';
 
 describe('Sanitize Utils', () => {
   describe('sanitizePath', () => {

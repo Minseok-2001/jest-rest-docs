@@ -1,5 +1,5 @@
-import { HttpSnippetGenerator } from '../../../src/generators';
-import { DocumentationContext } from '../../../src/types';
+import { HttpSnippetGenerator } from '../../../lib/generators';
+import { DocumentationContext } from '../../../lib/types';
 
 describe('HttpSnippetGenerator', () => {
   let generator: HttpSnippetGenerator;

@@ -1,4 +1,4 @@
-import { DocumentationContext, Field } from '../../../src/types';
+import { DocumentationContext, Field } from '../../../lib/types';
 
 export class FieldsSnippetGenerator {
   async generate(context: DocumentationContext): Promise<string> {

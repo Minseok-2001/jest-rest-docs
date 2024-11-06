@@ -1,4 +1,4 @@
-import { DocumentationContext, Parameter } from '../../../src/types';
+import { DocumentationContext, Parameter } from '../../../lib/types';
 
 export class ParametersSnippetGenerator {
   async generate(context: DocumentationContext): Promise<string> {

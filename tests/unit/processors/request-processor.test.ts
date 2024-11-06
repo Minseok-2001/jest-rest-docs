@@ -1,5 +1,5 @@
-import { RequestProcessor } from '../../../src/processors';
-import { DocumentationContext } from '../../../src/types';
+import { RequestProcessor } from '../../../lib/processors';
+import { DocumentationContext } from '../../../lib/types';
 
 describe('RequestProcessor', () => {
   let processor: RequestProcessor;

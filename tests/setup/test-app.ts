@@ -23,11 +23,9 @@ const app = express();
 const router = Router();
 app.use(express.json());
 
-// 테스트용 메모리 DB
 let users: User[] = [];
 let nextId = 1;
 
-// 사용자 생성 API
 router.post('/api/users', (req: CreateUserRequest, res: Response) => {
   const newUser: User = {
     id: nextId++,
@@ -38,7 +36,6 @@ router.post('/api/users', (req: CreateUserRequest, res: Response) => {
   return res.status(201).json(newUser);
 });
 
-// 사용자 조회 API
 router.get('/api/users/:id', (req: GetUserRequest, res: Response) => {
   const user = users.find((u) => u.id === parseInt(req.params.id));
   if (!user) {
