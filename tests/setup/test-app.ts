@@ -29,10 +29,15 @@ let nextId = 1;
 
 // 사용자 생성 API
 router.post('/api/users', (req: CreateUserRequest, res: Response) => {
+  const { name, email } = req.body;
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Name and email are required' });
+  }
+
   const newUser: User = {
     id: nextId++,
-    name: req.body.name,
-    email: req.body.email,
+    name,
+    email,
   };
   users.push(newUser);
   return res.status(201).json(newUser);
