@@ -2,7 +2,8 @@ import { OpenAPIV3 } from 'openapi-types';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { sanitizePath } from './utils';
-import axios, { AxiosResponse } from 'axios';
+import supertest from 'supertest';
+import * as http from 'http';
 
 export interface DocumentOptions {
   tags?: string[];
@@ -11,7 +12,7 @@ export interface DocumentOptions {
 }
 
 export interface TestOptions {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD' | 'TRACE' | 'CONNECT';
   path: string;
   body?: any;
   headers?: Record<string, string>;
@@ -30,26 +31,30 @@ export interface TestOptions {
   expect: {
     statusCode: number;
     bodySchema: OpenAPIV3.SchemaObject;
+    description?: string;
   };
 }
 
 export class JestRestDocs {
   private openapi: Partial<OpenAPIV3.Document>;
   private paths: OpenAPIV3.PathsObject = {};
-  private outputDir: string;
-  private snippetsDir: string;
-  private baseUrl: string;
+  private readonly outputDir: string;
+  private readonly snippetsDir: string;
+  private readonly baseUrl: string;
+  private serverInstance: http.Server;
 
   constructor(options: {
     outputDir: string;
     snippetsDir: string;
     openapi: Partial<OpenAPIV3.Document>;
     baseUrl?: string;
+    serverInstance?: any;
   }) {
     this.outputDir = options.outputDir;
     this.snippetsDir = options.snippetsDir;
     this.openapi = options.openapi;
     this.baseUrl = options.baseUrl || 'http://localhost:3000';
+    this.serverInstance = options.serverInstance;
 
     // 디렉토리 생성
     fs.ensureDirSync(this.outputDir);
@@ -58,93 +63,100 @@ export class JestRestDocs {
 
   document(title: string, metadata: DocumentOptions, testFn: () => Promise<void>) {
     return async () => {
-      // 문서화 컨텍스트 초기화
       const context = {
         title,
         ...metadata,
       };
 
       try {
-        // 테스트 실행
         const result = await testFn();
-
-        // OpenAPI 문서 생성
         await this.generateOpenApiSpec();
-
-        // 스니펫 생성
         await this.generateSnippets(context);
 
         return result;
       } catch (error) {
-        // 에러 발생 시에도 문서화
         await this.generateOpenApiSpec();
         throw error;
       }
     };
   }
 
-  async test(options: TestOptions): Promise<AxiosResponse> {
-    const {
-      method,
-      path,
-      body,
-      headers = {},
-      pathParams = [],
-      queryParams = [],
-      expect: expectations,
-    } = options;
+  async test(options: TestOptions): Promise<supertest.Response> {
+    const { method, path, body, pathParams = [], queryParams = [], expect: expectations } = options;
 
-    // OpenAPI 경로 정보 저장
     this.addPath(path, method.toLowerCase(), {
       body,
       pathParams,
       queryParams,
-      response: expectations,
-    });
-
-    // 실제 API 호출
-    const response = await axios({
+      expect: expectations,
       method,
-      url: `${this.baseUrl}${path}`,
-      data: body,
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      validateStatus: () => true, // 모든 상태 코드 허용
+      path,
     });
-
-    // 응답 검증
-    if (response.status !== expectations.statusCode) {
-      throw new Error(
-        `Expected status code ${expectations.statusCode} but received ${response.status}`
-      );
+    let request;
+    switch (options.method.toUpperCase()) {
+      case 'GET':
+        request = supertest(this.serverInstance).get(options.path);
+        break;
+      case 'POST':
+        request = supertest(this.serverInstance).post(options.path);
+        break;
+      case 'PUT':
+        request = supertest(this.serverInstance).put(options.path);
+        break;
+      case 'DELETE':
+        request = supertest(this.serverInstance).delete(options.path);
+        break;
+      case 'PATCH':
+        request = supertest(this.serverInstance).patch(options.path);
+        break;
+      case 'OPTIONS':
+        request = supertest(this.serverInstance).options(options.path);
+        break;
+      case 'HEAD':
+        request = supertest(this.serverInstance).head(options.path);
+        break;
+      case 'TRACE':
+        request = supertest(this.serverInstance).trace(options.path);
+        break;
+      default:
+        throw new Error(`Unsupported method: ${options.method}`);
     }
 
+    const response = await request.set(options.headers || {}).send(options.body || {});
+
+    if (response.status !== options.expect.statusCode) {
+      throw new Error(
+        `Expected status code ${options.expect.statusCode} but received ${response.status}`
+      );
+    }
     return response;
   }
 
-  private addPath(path: string, method: string, info: any) {
+  private addPath(path: string, method: string, info: TestOptions) {
     if (!this.paths[path]) {
       this.paths[path] = {} as Record<string, any>;
     }
 
     (this.paths[path] as Record<string, any>)[method] = {
       parameters: [
-        ...info.pathParams.map((param: any) => ({
-          name: param.name,
-          in: 'path',
-          description: param.description,
-          required: param.required,
-          schema: { type: param.type },
-        })),
-        ...info.queryParams.map((param: any) => ({
-          name: param.name,
-          in: 'query',
-          description: param.description,
-          required: param.required,
-          schema: { type: param.type },
-        })),
+        ...(info.pathParams
+          ? info.pathParams.map((param: any) => ({
+              name: param.name,
+              in: 'path',
+              description: param.description,
+              required: param.required,
+              schema: { type: param.type },
+            }))
+          : []),
+        ...(info.queryParams
+          ? info.queryParams.map((param: any) => ({
+              name: param.name,
+              in: 'query',
+              description: param.description,
+              required: param.required,
+              schema: { type: param.type },
+            }))
+          : []),
       ],
       requestBody: info.body
         ? {
@@ -159,11 +171,11 @@ export class JestRestDocs {
           }
         : undefined,
       responses: {
-        [info.response.statusCode]: {
-          description: 'Successful response',
+        [info.expect.statusCode]: {
+          description: info.expect.description || '',
           content: {
             'application/json': {
-              schema: info.response.bodySchema,
+              schema: info.expect.bodySchema,
             },
           },
         },
@@ -200,7 +212,6 @@ export class JestRestDocs {
     const snippetDir = path.join(this.snippetsDir, sanitizePath(context.title));
     await fs.ensureDir(snippetDir);
 
-    // 각종 스니펫 생성
     await Promise.all([
       this.generateRequestSnippet(snippetDir, context),
       this.generateResponseSnippet(snippetDir, context),
