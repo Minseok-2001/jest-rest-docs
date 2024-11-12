@@ -1,52 +1,35 @@
 import { OpenAPIV3 } from 'openapi-types';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { sanitizePath } from './utils';
-import supertest from 'supertest';
+import supertest, { Response, SuperTest, Test } from 'supertest';
+import { IncomingHttpHeaders } from 'http';
 import * as http from 'http';
 
-export interface DocumentOptions {
+type HTTPMethod = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
+
+interface ApiMetadata {
   tags?: string[];
   summary?: string;
   description?: string;
-}
-export interface PathParam {
-  name: string;
-  description: string;
-  type: string;
-  required?: boolean;
-  value?: string | number;
-}
-
-export interface QueryParam {
-  name: string;
-  description: string;
-  type: string;
-  required?: boolean;
-  value?: string | number;
-}
-
-export interface TestOptions {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD' | 'TRACE' | 'CONNECT';
-  path: string;
-  body?: any;
-  headers?: Record<string, string>;
-  pathParams?: PathParam[];
-  queryParams?: QueryParam[];
-  expect: {
-    statusCode: number;
-    bodySchema: OpenAPIV3.SchemaObject;
+  deprecated?: boolean;
+  security?: Array<{ [key: string]: string[] }>;
+  parameters?: Array<{
+    name: string;
+    in: 'path' | 'query' | 'header' | 'cookie';
     description?: string;
-  };
+    required?: boolean;
+    schema?: OpenAPIV3.SchemaObject;
+  }>;
 }
 
 export class JestRestDocs {
   private openapi: Partial<OpenAPIV3.Document>;
-  private paths: OpenAPIV3.PathsObject = {};
+  private paths: Record<string, OpenAPIV3.PathItemObject> = {};
   private readonly outputDir: string;
   private readonly snippetsDir: string;
   private readonly baseUrl: string;
-  private serverInstance: http.Server;
+  private readonly serverInstance: http.Server;
+  private currentMetadata?: ApiMetadata;
 
   constructor(options: {
     outputDir: string;
@@ -61,193 +44,246 @@ export class JestRestDocs {
     this.baseUrl = options.baseUrl || 'http://localhost:3000';
     this.serverInstance = options.serverInstance;
 
-    // 디렉토리 생성
     fs.ensureDirSync(this.outputDir);
     fs.ensureDirSync(this.snippetsDir);
   }
 
-  document(title: string, metadata: DocumentOptions, testFn: () => Promise<void>) {
-    return async () => {
-      const context = {
-        title,
-        ...metadata,
+  async test({
+    method,
+    path,
+    metadata = {},
+    callback,
+  }: {
+    method: string;
+    path: string;
+    metadata: ApiMetadata;
+    callback: (request: supertest.SuperTest<supertest.Test>) => Promise<void>;
+  }) {
+    const request = supertest(this.serverInstance);
+    const lowercaseMethod = method.toLowerCase() as HTTPMethod;
+
+    // Store the metadata for this test
+    this.currentMetadata = metadata;
+
+    let capturedPath: string;
+    let capturedBody: any;
+    let capturedHeaders: Record<string, string> = {};
+    let capturedQuery: Record<string, any> = {};
+
+    const self = this;
+
+    // Extend the test object with our capture logic
+    const extendTest = (test: supertest.Test) => {
+      const originalSend = test.send.bind(test);
+      test.send = function (data: any) {
+        capturedBody = data;
+        return originalSend(data);
       };
 
-      try {
-        const result = await testFn();
-        await this.generateOpenApiSpec();
-        await this.generateSnippets(context);
+      const originalQuery = test.query.bind(test);
+      test.query = function (params: Record<string, any>) {
+        capturedQuery = params;
+        return originalQuery(params);
+      };
 
-        return result;
-      } catch (error) {
-        await this.generateOpenApiSpec();
-        throw error;
-      }
+      const originalSet = test.set.bind(test);
+      const setSpy = function (
+        field: 'Cookie' | string | IncomingHttpHeaders,
+        val?: string | string[]
+      ) {
+        if (field === 'Cookie' && Array.isArray(val)) {
+          capturedHeaders['Cookie'] = val.join('; ');
+          return originalSet(field, val);
+        }
+
+        if (typeof field === 'object') {
+          Object.entries(field).forEach(([key, value]) => {
+            capturedHeaders[key] = String(value);
+          });
+          return originalSet(field as IncomingHttpHeaders);
+        }
+
+        if (typeof field === 'string' && val !== undefined) {
+          capturedHeaders[field] = String(val);
+          return originalSet(field, val as string);
+        }
+
+        return originalSet(field as any, val as any);
+      };
+
+      test.set = setSpy;
+
+      const originalEnd = test.end.bind(test);
+      test.end = function (fn?: (err: Error, res: Response) => void) {
+        return originalEnd((err: Error, res: Response) => {
+          if (!err) {
+            self.captureApiDoc(lowercaseMethod, path, {
+              request: {
+                path: capturedPath,
+                body: capturedBody,
+                headers: capturedHeaders,
+                query: capturedQuery,
+              },
+              response: {
+                status: res.status,
+                body: res.body,
+                headers: res.headers as Record<string, string>,
+              },
+            });
+          }
+          if (fn) fn(err, res);
+        });
+      };
+
+      return test;
     };
-  }
 
-  async test(options: TestOptions): Promise<supertest.Response> {
-    const { method, path, body, pathParams = [], queryParams = [], expect: expectations } = options;
-    this.validatePathParams(path, pathParams);
-
-    this.addPath(path, method.toLowerCase(), {
-      body,
-      pathParams,
-      queryParams,
-      expect: expectations,
-      method,
-      path,
+    // Create a proxy for the request object
+    const proxy = new Proxy(request, {
+      get(target: any, prop: string) {
+        if (prop === lowercaseMethod) {
+          return (url: string) => {
+            capturedPath = url;
+            const test = target[prop](url);
+            return extendTest(test);
+          };
+        }
+        return target[prop];
+      },
     });
-    const actualPath = this.replacePathParams(path, pathParams);
 
-    let request;
-    switch (options.method.toUpperCase()) {
-      case 'GET':
-        request = supertest(this.serverInstance).get(actualPath);
-        break;
-      case 'POST':
-        request = supertest(this.serverInstance).post(actualPath);
-        break;
-      case 'PUT':
-        request = supertest(this.serverInstance).put(actualPath);
-        break;
-      case 'DELETE':
-        request = supertest(this.serverInstance).delete(actualPath);
-        break;
-      case 'PATCH':
-        request = supertest(this.serverInstance).patch(actualPath);
-        break;
-      case 'OPTIONS':
-        request = supertest(this.serverInstance).options(actualPath);
-        break;
-      case 'HEAD':
-        request = supertest(this.serverInstance).head(actualPath);
-        break;
-      case 'TRACE':
-        request = supertest(this.serverInstance).trace(actualPath);
-        break;
-      default:
-        throw new Error(`Unsupported method: ${options.method}`);
+    try {
+      await callback(proxy as SuperTest<Test>);
+    } finally {
+      // Clear the metadata after the test
+      this.currentMetadata = undefined;
     }
-
-    const response = await request.set(options.headers || {}).send(options.body || {});
-
-    if (response.status !== options.expect.statusCode) {
-      throw new Error(
-        `Expected status code ${options.expect.statusCode} but received ${response.status}`
-      );
-    }
-    return response;
   }
 
-  private replacePathParams(templatePath: string, params: PathParam[]): string {
-    let actualPath = templatePath;
-    const paramRegex = /{([^}]+)}/g;
-
-    return actualPath.replace(paramRegex, (match, paramName) => {
-      const param = params.find((p) => p.name === paramName);
-      if (!param || param.value == null) {
-        throw new Error(`Missing value for path parameter: ${paramName}`);
-      }
-      return param.value.toString();
-    });
-  }
-
-  private addPath(path: string, method: string, info: TestOptions) {
-    if (!this.paths[path]) {
-      this.paths[path] = {} as Record<string, any>;
+  private captureApiDoc(
+    method: HTTPMethod,
+    pathTemplate: string,
+    capture: {
+      request: {
+        path: string;
+        body?: any;
+        headers?: Record<string, string>;
+        query?: Record<string, any>;
+      };
+      response: {
+        status: number;
+        body: any;
+        headers: Record<string, string>;
+      };
+    }
+  ) {
+    if (!this.paths[pathTemplate]) {
+      this.paths[pathTemplate] = {};
     }
 
-    const existingOperation = (this.paths[path] as Record<string, any>)[method];
-    const existingParams = existingOperation?.parameters || [];
+    // Get existing operation or create new one
+    const existingOperation = (this.paths[pathTemplate][method] as OpenAPIV3.OperationObject) || {};
 
-    const newPathParams =
-      info.pathParams?.map((param) => ({
-        name: param.name,
-        in: 'path',
-        description: param.description,
-        required: param.required ?? true,
-        schema: { type: param.type },
-      })) || [];
+    // Build parameters array
+    const parameters: OpenAPIV3.ParameterObject[] = [
+      ...(this.currentMetadata?.parameters || []),
+      ...this.extractPathParameters(pathTemplate),
+      ...this.extractQueryParameters(capture.request.query || {}),
+    ];
 
-    const newQueryParams =
-      info.queryParams?.map((param) => ({
-        name: param.name,
-        in: 'query',
-        description: param.description,
-        required: param.required,
-        schema: { type: param.type },
-      })) || [];
-
-    const mergedParams = this.mergeParameters([
-      ...existingParams,
-      ...newPathParams,
-      ...newQueryParams,
-    ]);
-
-    const responses = {
-      ...(existingOperation?.responses || {}),
-      [info.expect.statusCode]: {
-        description: info.expect.description || '',
-        content: {
-          'application/json': {
-            schema: info.expect.bodySchema,
+    const operation: OpenAPIV3.OperationObject = {
+      ...existingOperation,
+      tags: this.currentMetadata?.tags,
+      summary: this.currentMetadata?.summary,
+      description: this.currentMetadata?.description,
+      deprecated: this.currentMetadata?.deprecated,
+      security: this.currentMetadata?.security,
+      parameters: parameters.length > 0 ? parameters : undefined,
+      responses: {
+        ...existingOperation.responses,
+        [capture.response.status]: {
+          description: this.currentMetadata?.description || `${capture.response.status} response`,
+          content: {
+            'application/json': {
+              schema: this.inferSchema(capture.response.body),
+            },
           },
         },
       },
     };
 
-    (this.paths[path] as Record<string, any>)[method] = {
-      parameters: mergedParams,
-      requestBody: info.body
-        ? {
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  example: info.body,
-                },
-              },
-            },
-          }
-        : undefined,
-      responses,
-    };
+    if (capture.request.body) {
+      operation.requestBody = {
+        content: {
+          'application/json': {
+            schema: this.inferSchema(capture.request.body),
+          },
+        },
+      };
+    }
+
+    this.paths[pathTemplate][method] = operation;
   }
 
-  private mergeParameters(
-    parameters: Array<OpenAPIV3.ParameterObject>
-  ): Array<OpenAPIV3.ParameterObject> {
-    const paramMap = new Map<string, OpenAPIV3.ParameterObject>();
+  private extractPathParameters(pathTemplate: string): OpenAPIV3.ParameterObject[] {
+    const params: OpenAPIV3.ParameterObject[] = [];
+    const matches = pathTemplate.match(/{([^}]+)}/g) || [];
 
-    parameters.forEach((param) => {
-      const key = `${param.in}:${param.name}`;
-      if (!paramMap.has(key)) {
-        paramMap.set(key, param);
-      }
+    matches.forEach((match) => {
+      const name = match.slice(1, -1);
+      params.push({
+        name,
+        in: 'path',
+        required: true,
+        schema: { type: 'string' },
+      });
     });
 
-    return Array.from(paramMap.values());
+    return params;
   }
 
-  private validatePathParams(path: string, params: PathParam[]) {
-    const templateParams = Array.from(path.matchAll(/{([^}]+)}/g)).map((match) => match[1]);
-    const providedParams = params.map((p) => p.name);
+  private extractQueryParameters(query: Record<string, any>): OpenAPIV3.ParameterObject[] {
+    return Object.entries(query).map(([name, value]) => ({
+      name,
+      in: 'query',
+      required: false,
+      schema: this.inferSchema(value),
+    }));
+  }
 
-    // Check for missing parameters
-    const missingParams = templateParams.filter((p) => !providedParams.includes(p));
-    if (missingParams.length > 0) {
-      throw new Error(`Missing path parameters: ${missingParams.join(', ')}`);
+  private inferSchema(data: any): OpenAPIV3.SchemaObject {
+    if (data === null || data === undefined) {
+      return { type: 'object', nullable: true };
     }
 
-    // Check for extra parameters
-    const extraParams = providedParams.filter((p) => !templateParams.includes(p));
-    if (extraParams.length > 0) {
-      throw new Error(`Unexpected path parameters: ${extraParams.join(', ')}`);
+    switch (typeof data) {
+      case 'number':
+        return { type: 'number' };
+      case 'string':
+        return { type: 'string' };
+      case 'boolean':
+        return { type: 'boolean' };
+      case 'object':
+        if (Array.isArray(data)) {
+          return {
+            type: 'array',
+            items: data.length > 0 ? this.inferSchema(data[0]) : {},
+          };
+        }
+        const properties: Record<string, OpenAPIV3.SchemaObject> = {};
+        Object.entries(data).forEach(([key, value]) => {
+          properties[key] = this.inferSchema(value);
+        });
+        return {
+          type: 'object',
+          properties,
+        };
+      default:
+        return { type: 'object' };
     }
   }
 
-  private async generateOpenApiSpec() {
+  async generateDocs() {
     const spec: OpenAPIV3.Document = {
       openapi: '3.0.0',
       info: {
@@ -256,136 +292,16 @@ export class JestRestDocs {
         description: this.openapi.info?.description,
         ...this.openapi.info,
       },
-      servers: this.openapi.servers || [
+      servers: [
         {
           url: this.baseUrl,
-          description: 'API server',
+          description: 'API Server',
         },
       ],
       paths: this.paths,
       components: this.openapi.components || {},
-      tags: this.openapi.tags || [],
-      security: this.openapi.security,
-      externalDocs: this.openapi.externalDocs,
     };
 
     await fs.writeJson(path.join(this.outputDir, 'openapi.json'), spec, { spaces: 2 });
   }
-
-  private async generateSnippets(context: any) {
-    const snippetDir = path.join(this.snippetsDir, sanitizePath(context.title));
-    await fs.ensureDir(snippetDir);
-
-    await Promise.all([
-      this.generateRequestSnippet(snippetDir, context),
-      this.generateResponseSnippet(snippetDir, context),
-    ]);
-  }
-
-  private async generateRequestSnippet(dir: string, context: any) {
-    const requestSnippet = `# ${context.title} - HTTP Request
-
-    ## Overview
-    ${context.description || 'API request details'}
-    
-    ## Request Details
-    \`\`\`http
-    ${context.method?.toUpperCase()} ${context.path}
-    ${Array.from<[string, string]>(context.requestHeaders || [])
-      .map(([key, value]) => `${key}: ${value}`)
-      .join('\n')}
-    
-    ${context.requestBody ? JSON.stringify(context.requestBody, null, 2) : ''}
-    \`\`\`
-    
-    ${
-      context.pathParams?.length
-        ? `
-    ## Path Parameters
-    | Name | Description | Type | Required |
-    |------|-------------|------|----------|
-    ${context.pathParams
-      .map(
-        (param: { name: any; description: any; type: any; required: any }) =>
-          `| ${param.name} | ${param.description} | ${param.type} | ${param.required ? 'Yes' : 'No'} |`
-      )
-      .join('\n')}
-    `
-        : ''
-    }
-    
-    ${
-      context.queryParams?.length
-        ? `
-    ## Query Parameters
-    | Name | Description | Type | Required |
-    |------|-------------|------|----------|
-    ${context.queryParams
-      .map(
-        (param: { name: any; description: any; type: any; required: any }) =>
-          `| ${param.name} | ${param.description} | ${param.type} | ${param.required ? 'Yes' : 'No'} |`
-      )
-      .join('\n')}
-    `
-        : ''
-    }
-`;
-
-    await fs.writeFile(path.join(dir, 'request.md'), requestSnippet);
-  }
-
-  private async generateResponseSnippet(dir: string, context: any) {
-    const responseSnippet = `# ${context.title} - HTTP Response
-
-    ## Overview
-    Response details for ${context.description || 'this API endpoint'}
-    
-    ## Response Details
-    \`\`\`http
-    HTTP/1.1 ${context.statusCode}
-    ${Array.from<[string, string]>(context.responseHeaders || [])
-      .map(([key, value]) => `${key}: ${value}`)
-      .join('\n')}
-    
-    ${context.responseBody ? JSON.stringify(context.responseBody, null, 2) : ''}
-    \`\`\`
-    
-    ## Response Schema
-    \`\`\`json
-    ${JSON.stringify(context.responseSchema || {}, null, 2)}
-    \`\`\`
-    
-    ${
-      context.responseFields?.length
-        ? `
-    ## Response Fields
-    | Field | Type | Description |
-    |-------|------|-------------|
-    ${context.responseFields
-      .map(
-        (field: { path: any; type: any; description: any }) =>
-          `| ${field.path} | ${field.type} | ${field.description} |`
-      )
-      .join('\n')}
-    `
-        : ''
-    }
-    
-    ${
-      context.statusCodes
-        ? `
-    ## Status Codes
-    | Code | Description |
-    |------|-------------|
-    ${Object.entries(context.statusCodes)
-      .map(([code, description]) => `| ${code} | ${description} |`)
-      .join('\n')}
-    `
-        : ''
-    }
-    `;
-
-    await fs.writeFile(path.join(dir, 'response.md'), responseSnippet);
-  }
 }
-export default JestRestDocs;
