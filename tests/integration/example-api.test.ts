@@ -54,40 +54,6 @@ describe('User API Integration Tests', () => {
           summary: '새로운 사용자 생성',
           description:
             '신규 사용자를 생성합니다. 이메일은 고유해야 하며, 기본 정보와 주소 정보를 함께 저장할 수 있습니다.',
-          // requestBody: {
-          //   description: '사용자 생성 정보',
-          //   required: true,
-          //   content: {
-          //     'application/json': {
-          //       schema: {
-          //         type: 'object',
-          //         required: ['name', 'email'],
-          //         properties: {
-          //           name: {
-          //             type: 'string',
-          //             description: '사용자 이름',
-          //           },
-          //           email: {
-          //             type: 'string',
-          //             format: 'email',
-          //             description: '이메일 주소',
-          //           },
-          //           age: {
-          //             type: 'integer',
-          //             description: '나이',
-          //           },
-          //           address: {
-          //             type: 'object',
-          //             properties: {
-          //               street: { type: 'string', description: '도로명 주소' },
-          //               city: { type: 'string', description: '도시' },
-          //             },
-          //           },
-          //         },
-          //       },
-          //     },
-          //   },
-          // },
         },
         callback: async (request) => {
           const response = await request
@@ -179,7 +145,7 @@ describe('User API Integration Tests', () => {
               name: 'limit',
               in: 'query',
               description: '페이지당 항목 수',
-              schema: { type: 'integer', default: 10 },
+              schema: { type: 'integer', default: 10, maximum: 100 },
             },
             {
               name: 'sort',
@@ -217,6 +183,7 @@ describe('User API Integration Tests', () => {
               in: 'path',
               description: '사용자 ID',
               required: true,
+
               schema: { type: 'integer' },
             },
           ],
