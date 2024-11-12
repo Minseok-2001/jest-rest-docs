@@ -10,24 +10,29 @@ export interface DocumentOptions {
   summary?: string;
   description?: string;
 }
+export interface PathParam {
+  name: string;
+  description: string;
+  type: string;
+  required?: boolean;
+  value?: string | number;
+}
+
+export interface QueryParam {
+  name: string;
+  description: string;
+  type: string;
+  required?: boolean;
+  value?: string | number;
+}
 
 export interface TestOptions {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD' | 'TRACE' | 'CONNECT';
   path: string;
   body?: any;
   headers?: Record<string, string>;
-  pathParams?: Array<{
-    name: string;
-    description: string;
-    type: string;
-    required?: boolean;
-  }>;
-  queryParams?: Array<{
-    name: string;
-    description: string;
-    type: string;
-    required?: boolean;
-  }>;
+  pathParams?: PathParam[];
+  queryParams?: QueryParam[];
   expect: {
     statusCode: number;
     bodySchema: OpenAPIV3.SchemaObject;
@@ -83,6 +88,7 @@ export class JestRestDocs {
 
   async test(options: TestOptions): Promise<supertest.Response> {
     const { method, path, body, pathParams = [], queryParams = [], expect: expectations } = options;
+    this.validatePathParams(path, pathParams);
 
     this.addPath(path, method.toLowerCase(), {
       body,
@@ -92,31 +98,33 @@ export class JestRestDocs {
       method,
       path,
     });
+    const actualPath = this.replacePathParams(path, pathParams);
+
     let request;
     switch (options.method.toUpperCase()) {
       case 'GET':
-        request = supertest(this.serverInstance).get(options.path);
+        request = supertest(this.serverInstance).get(actualPath);
         break;
       case 'POST':
-        request = supertest(this.serverInstance).post(options.path);
+        request = supertest(this.serverInstance).post(actualPath);
         break;
       case 'PUT':
-        request = supertest(this.serverInstance).put(options.path);
+        request = supertest(this.serverInstance).put(actualPath);
         break;
       case 'DELETE':
-        request = supertest(this.serverInstance).delete(options.path);
+        request = supertest(this.serverInstance).delete(actualPath);
         break;
       case 'PATCH':
-        request = supertest(this.serverInstance).patch(options.path);
+        request = supertest(this.serverInstance).patch(actualPath);
         break;
       case 'OPTIONS':
-        request = supertest(this.serverInstance).options(options.path);
+        request = supertest(this.serverInstance).options(actualPath);
         break;
       case 'HEAD':
-        request = supertest(this.serverInstance).head(options.path);
+        request = supertest(this.serverInstance).head(actualPath);
         break;
       case 'TRACE':
-        request = supertest(this.serverInstance).trace(options.path);
+        request = supertest(this.serverInstance).trace(actualPath);
         break;
       default:
         throw new Error(`Unsupported method: ${options.method}`);
@@ -132,32 +140,65 @@ export class JestRestDocs {
     return response;
   }
 
+  private replacePathParams(templatePath: string, params: PathParam[]): string {
+    let actualPath = templatePath;
+    const paramRegex = /{([^}]+)}/g;
+
+    return actualPath.replace(paramRegex, (match, paramName) => {
+      const param = params.find((p) => p.name === paramName);
+      if (!param || param.value == null) {
+        throw new Error(`Missing value for path parameter: ${paramName}`);
+      }
+      return param.value.toString();
+    });
+  }
+
   private addPath(path: string, method: string, info: TestOptions) {
     if (!this.paths[path]) {
       this.paths[path] = {} as Record<string, any>;
     }
 
+    const existingOperation = (this.paths[path] as Record<string, any>)[method];
+    const existingParams = existingOperation?.parameters || [];
+
+    const newPathParams =
+      info.pathParams?.map((param) => ({
+        name: param.name,
+        in: 'path',
+        description: param.description,
+        required: param.required ?? true,
+        schema: { type: param.type },
+      })) || [];
+
+    const newQueryParams =
+      info.queryParams?.map((param) => ({
+        name: param.name,
+        in: 'query',
+        description: param.description,
+        required: param.required,
+        schema: { type: param.type },
+      })) || [];
+
+    const mergedParams = this.mergeParameters([
+      ...existingParams,
+      ...newPathParams,
+      ...newQueryParams,
+    ]);
+
+    const responses = {
+      ...(existingOperation?.responses || {}),
+      [info.expect.statusCode]: {
+        description: info.expect.description || '',
+        content: {
+          'application/json': {
+            schema: info.expect.bodySchema,
+          },
+        },
+      },
+    };
+
     (this.paths[path] as Record<string, any>)[method] = {
-      parameters: [
-        ...(info.pathParams
-          ? info.pathParams.map((param: any) => ({
-              name: param.name,
-              in: 'path',
-              description: param.description,
-              required: param.required,
-              schema: { type: param.type },
-            }))
-          : []),
-        ...(info.queryParams
-          ? info.queryParams.map((param: any) => ({
-              name: param.name,
-              in: 'query',
-              description: param.description,
-              required: param.required,
-              schema: { type: param.type },
-            }))
-          : []),
-      ],
+      parameters: mergedParams,
       requestBody: info.body
         ? {
             content: {
@@ -170,17 +211,40 @@ export class JestRestDocs {
             },
           }
         : undefined,
-      responses: {
-        [info.expect.statusCode]: {
-          description: info.expect.description || '',
-          content: {
-            'application/json': {
-              schema: info.expect.bodySchema,
-            },
-          },
-        },
-      },
+      responses,
     };
+  }
+
+  private mergeParameters(
+    parameters: Array<OpenAPIV3.ParameterObject>
+  ): Array<OpenAPIV3.ParameterObject> {
+    const paramMap = new Map<string, OpenAPIV3.ParameterObject>();
+
+    parameters.forEach((param) => {
+      const key = `${param.in}:${param.name}`;
+      if (!paramMap.has(key)) {
+        paramMap.set(key, param);
+      }
+    });
+
+    return Array.from(paramMap.values());
+  }
+
+  private validatePathParams(path: string, params: PathParam[]) {
+    const templateParams = Array.from(path.matchAll(/{([^}]+)}/g)).map((match) => match[1]);
+    const providedParams = params.map((p) => p.name);
+
+    // Check for missing parameters
+    const missingParams = templateParams.filter((p) => !providedParams.includes(p));
+    if (missingParams.length > 0) {
+      throw new Error(`Missing path parameters: ${missingParams.join(', ')}`);
+    }
+
+    // Check for extra parameters
+    const extraParams = providedParams.filter((p) => !templateParams.includes(p));
+    if (extraParams.length > 0) {
+      throw new Error(`Unexpected path parameters: ${extraParams.join(', ')}`);
+    }
   }
 
   private async generateOpenApiSpec() {
