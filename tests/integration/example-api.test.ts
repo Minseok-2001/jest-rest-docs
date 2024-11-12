@@ -108,13 +108,14 @@ describe('Example API Tests', () => {
         const userId = 1234;
         const response = await docs.test({
           method: 'GET',
-          path: `/api/users/${userId}`,
+          path: `/api/users/{userId}`,
           queryParams: [
             {
               name: 'id',
               description: '사용자 ID',
               type: 'number',
               required: true,
+              value: userId.toString(),
             },
           ],
           expect: {
