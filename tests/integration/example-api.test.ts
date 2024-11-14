@@ -1,7 +1,6 @@
 import { JestRestDocs } from '../../src';
 import app from '../setup/test-app';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import * as assert from 'node:assert';
 
 const server = app.listen(3000);
 

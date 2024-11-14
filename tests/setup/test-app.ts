@@ -47,7 +47,7 @@ const adminCredentials = {
 };
 
 // Middlewares
-const validateAdmin = (req: Request, res: Response, next: Function) => {
+const validateAdmin = (req: Request, res: Response, next: () => void) => {
   const token = req.headers.authorization?.split('Bearer ')[1];
   if (token !== adminCredentials.token) {
     return res.status(401).json({ error: 'Unauthorized' });
