@@ -94,8 +94,6 @@ export class JestRestDocs {
     let capturedHeaders: Record<string, string> = {};
     let capturedQuery: Record<string, any> = {};
 
-    const self = this;
-
     // Extend the test object with our capture logic
     const extendTest = (test: supertest.Test) => {
       const originalSend = test.send.bind(test);
@@ -138,10 +136,10 @@ export class JestRestDocs {
       test.set = setSpy;
 
       const originalEnd = test.end.bind(test);
-      test.end = function (fn?: (err: Error, res: Response) => void) {
+      test.end = (fn?: (err: Error, res: Response) => void) => {
         return originalEnd((err: Error, res: Response) => {
           if (!err) {
-            self.captureApiDoc(lowercaseMethod, path, {
+            this.captureApiDoc(lowercaseMethod, path, {
               request: {
                 path: capturedPath,
                 body: capturedBody,
