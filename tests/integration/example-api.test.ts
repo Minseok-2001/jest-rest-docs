@@ -1,6 +1,7 @@
 import { JestRestDocs } from '../../src';
 import app from '../setup/test-app';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import * as assert from 'node:assert';
 
 const server = app.listen(3000);
 
@@ -81,17 +82,23 @@ describe('User API Integration Tests', () => {
         path: '/api/users',
         metadata: {
           tags: ['Users'],
-          summary: '잘못된 이메일 형식 검증',
-          description: '이메일 형식이 올바르지 않은 경우 400 에러를 반환합니다.',
+          responses: {
+            400: {
+              description: '이메일 형식이 올바르지 않은 경우 400 에러를 반환합니다',
+            },
+          },
         },
         callback: async (request) => {
-          await request
+          const response = await request
             .post('/api/users')
             .send({
               name: '테스트',
               email: 'invalid-email',
             })
             .expect(400);
+
+          expect(response.body).toHaveProperty('error');
+          expect(response.body.error).toBe('Invalid email format');
         },
       });
     });
@@ -157,6 +164,19 @@ describe('User API Integration Tests', () => {
         },
         callback: async (request) => {
           await request
+            .post('/api/users')
+            .send({
+              name: '홍길동',
+              email: 'test@example.com',
+              age: 30,
+              address: {
+                street: '테헤란로',
+                city: '서울',
+              },
+            })
+            .expect(201);
+
+          const response = await request
             .get('/api/users')
             .query({
               page: 1,
@@ -164,6 +184,8 @@ describe('User API Integration Tests', () => {
               sort: 'name:asc',
             })
             .expect(200);
+
+          expect(response.body.users[0].name).toBe('홍길동');
         },
       });
     });
@@ -189,7 +211,7 @@ describe('User API Integration Tests', () => {
           ],
         },
         callback: async (request) => {
-          await request
+          const response = await request
             .patch(`/api/users/${userId}`)
             .send({
               name: '홍길동 (수정됨)',
@@ -198,6 +220,9 @@ describe('User API Integration Tests', () => {
               },
             })
             .expect(200);
+
+          expect(response.body.name).toBe('홍길동 (수정됨)');
+          expect(response.body.address.street).toBe('강남대로');
         },
       });
     });
@@ -238,7 +263,7 @@ describe('User API Integration Tests', () => {
           ],
         },
         callback: async (request) => {
-          await request
+          const response = await request
             .get('/api/users/search')
             .query({
               name: '홍',
@@ -247,6 +272,8 @@ describe('User API Integration Tests', () => {
               maxAge: 40,
             })
             .expect(200);
+
+          expect(response.body[0].name).toBe('홍길동 (수정됨)');
         },
       });
     });
@@ -277,10 +304,12 @@ describe('User API Integration Tests', () => {
           ],
         },
         callback: async (request) => {
-          await request
+          const response = await request
             .post(`/api/admin/users/${userId}/deactivate`)
             .set('Authorization', `Bearer ${adminToken}`)
             .expect(200);
+
+          expect(response.body.status).toBe('deactivated');
         },
       });
     });
@@ -288,6 +317,6 @@ describe('User API Integration Tests', () => {
 
   afterAll(async () => {
     await docs.generateDocs();
-    await server.close();
+    server.close();
   });
 });
