@@ -6,7 +6,6 @@ const server = app.listen(3000);
 
 const docs = new JestRestDocs({
   outputDir: 'build/docs',
-  snippetsDir: 'build/docs/snippets',
   openapi: {
     info: {
       title: 'User Management API',
