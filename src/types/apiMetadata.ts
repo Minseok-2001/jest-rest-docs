@@ -1,4 +1,3 @@
-// src/types/apiMetadata.ts
 import { OpenAPIV3 } from 'openapi-types';
 
 export type HTTPMethod = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';

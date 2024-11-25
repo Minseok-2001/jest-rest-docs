@@ -31,6 +31,7 @@ export class JestRestDocs {
     this.openapi = options.openapi;
     this.baseUrl = options.baseUrl || 'http://localhost:3000';
     this.serverInstance = options.serverInstance;
+    this.loadExistingDocs();
 
     fs.ensureDirSync(this.outputDir);
   }
@@ -244,7 +245,19 @@ export class JestRestDocs {
     this.paths[pathTemplate][method] = operation;
   }
 
+  private loadExistingDocs() {
+    const docPath = path.join(this.outputDir, 'openapi.json');
+    if (fs.existsSync(docPath)) {
+      const existingDoc = fs.readJsonSync(docPath) as OpenAPIV3.Document;
+      this.paths = existingDoc.paths as Record<string, OpenAPIV3.PathItemObject>;
+    }
+  }
+
   async generateDocs() {
+    const existingPaths = this.paths;
+
+    const mergedPaths = { ...existingPaths, ...this.paths };
+
     const spec: OpenAPIV3.Document = {
       openapi: this.openapi.openapi || '3.0.0',
       info: {
@@ -259,7 +272,7 @@ export class JestRestDocs {
           description: 'API Server',
         },
       ],
-      paths: this.paths,
+      paths: mergedPaths,
       components: this.openapi.components || {},
     };
 

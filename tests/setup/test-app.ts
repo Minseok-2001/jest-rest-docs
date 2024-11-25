@@ -76,7 +76,7 @@ router.post('/api/users', (req: CreateUserRequest, res: Response) => {
 
   // 이메일 형식 검증
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: 'Invalid email format' });
+    return res.status(400).json({ error: 'Invalid email123 format' });
   }
 
   // 중복 이메일 검증
