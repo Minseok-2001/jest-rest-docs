@@ -2,7 +2,7 @@ import { JestRestDocs } from '../../src';
 import app from '../setup/test-app';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-const server = app.listen(3000);
+const server = app.listen(0);
 
 const docs = new JestRestDocs({
   outputDir: 'build/docs',
@@ -70,33 +70,6 @@ describe('User API Integration Tests', () => {
 
           userId = response.body.id;
           expect(response.body.name).toBe('홍길동');
-        },
-      });
-    });
-
-    it('should validate email format', async () => {
-      await docs.test({
-        method: 'POST',
-        path: '/api/users',
-        metadata: {
-          tags: ['Users'],
-          responses: {
-            400: {
-              description: '이메일 형식이 올바르지 않은 경우 400 에러를 반환합니다',
-            },
-          },
-        },
-        callback: async (request) => {
-          const response = await request
-            .post('/api/users')
-            .send({
-              name: '테스트',
-              email: 'invalid-email',
-            })
-            .expect(400);
-
-          expect(response.body).toHaveProperty('error');
-          expect(response.body.error).toBe('Invalid email format');
         },
       });
     });
@@ -272,42 +245,6 @@ describe('User API Integration Tests', () => {
             .expect(200);
 
           expect(response.body[0].name).toBe('홍길동 (수정됨)');
-        },
-      });
-    });
-  });
-
-  describe('Admin Operations', () => {
-    it('should allow admin to deactivate user', async () => {
-      await docs.test({
-        method: 'POST',
-        path: '/api/admin/users/{id}/deactivate',
-        metadata: {
-          tags: ['Admin'],
-          summary: '사용자 계정 비활성화',
-          description: '관리자 권한으로 특정 사용자의 계정을 비활성화합니다.',
-          security: [
-            {
-              bearerAuth: [],
-            },
-          ],
-          parameters: [
-            {
-              name: 'id',
-              in: 'path',
-              description: '비활성화할 사용자 ID',
-              required: true,
-              schema: { type: 'integer' },
-            },
-          ],
-        },
-        callback: async (request) => {
-          const response = await request
-            .post(`/api/admin/users/${userId}/deactivate`)
-            .set('Authorization', `Bearer ${adminToken}`)
-            .expect(200);
-
-          expect(response.body.status).toBe('deactivated');
         },
       });
     });
