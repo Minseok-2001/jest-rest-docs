@@ -244,7 +244,10 @@ export class JestRestDocs {
     const existingData = fs.existsSync(tempFilePath) ? await fs.readJson(tempFilePath) : {};
     const newData = { ...existingData, paths: this.paths };
 
-    await fs.writeJson(tempFilePath, newData, { spaces: 2 });
+    // Atomic file write
+    const tempFile = `${tempFilePath}.tmp`;
+    await fs.writeJson(tempFile, newData, { spaces: 2 });
+    await fs.rename(tempFile, tempFilePath);
   }
 
   private loadExistingDocs() {
@@ -261,14 +264,22 @@ export class JestRestDocs {
     const files = await fs.readdir(tempDir);
 
     const mergedPaths: Record<string, any> = {};
+
     for (const file of files) {
       if (file.startsWith('docs-') && file.endsWith('.json')) {
         const data = await fs.readJson(path.join(tempDir, file));
-        for (const [path, methods] of Object.entries(data)) {
+        const paths = data.paths || {};
+
+        for (const [path, methods] of Object.entries(paths)) {
           if (!mergedPaths[path]) {
             mergedPaths[path] = {};
           }
-          Object.assign(mergedPaths[path], methods);
+          for (const [method, operation] of Object.entries(methods as Record<string, any>)) {
+            mergedPaths[path][method] = {
+              ...mergedPaths[path][method],
+              ...operation, // 병합
+            };
+          }
         }
       }
     }
