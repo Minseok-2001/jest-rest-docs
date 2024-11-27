@@ -1,4 +1,5 @@
 import { OpenAPIV3 } from 'openapi-types';
+import { getData, updateData } from './utils/sharedMemory';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import supertest, { Response, SuperTest, Test } from 'supertest';
@@ -12,6 +13,7 @@ import {
   extractQueryParameters,
   mergeParameterWithExample,
 } from './utils/schemaUtils';
+const tempDir = path.resolve(__dirname, '../temp-docs');
 
 export class JestRestDocs {
   private openapi: Partial<OpenAPIV3.Document>;
@@ -34,6 +36,7 @@ export class JestRestDocs {
     this.loadExistingDocs();
 
     fs.ensureDirSync(this.outputDir);
+    fs.ensureDirSync(tempDir);
   }
 
   async test({
@@ -101,9 +104,9 @@ export class JestRestDocs {
 
       const originalEnd = test.end.bind(test);
       test.end = (fn?: (err: Error, res: Response) => void) => {
-        return originalEnd((err: Error, res: Response) => {
+        return originalEnd(async (err: Error, res: Response) => {
           if (!err) {
-            this.captureApiDoc(lowercaseMethod, path, {
+            await this.captureApiDoc(lowercaseMethod, path, {
               request: {
                 path: capturedPath,
                 body: capturedBody,
@@ -146,7 +149,7 @@ export class JestRestDocs {
     }
   }
 
-  private captureApiDoc(
+  private async captureApiDoc(
     method: HTTPMethod,
     pathTemplate: string,
     capture: {
@@ -163,6 +166,10 @@ export class JestRestDocs {
       };
     }
   ) {
+    console.log('captureApiDoc called:', method, pathTemplate);
+    // console.log('Current paths:', this.paths);
+
+    // Initialize path if not exists
     if (!this.paths[pathTemplate]) {
       this.paths[pathTemplate] = {};
     }
@@ -174,6 +181,7 @@ export class JestRestDocs {
 
     const paramsMap = new Map<string, OpenAPIV3.ParameterObject>();
 
+    // Merge metadata parameters with actual values
     metadataParams.forEach((param) => {
       const key = `${param.in}:${param.name}`;
       const actualValue =
@@ -186,12 +194,21 @@ export class JestRestDocs {
       paramsMap.set(key, mergeParameterWithExample(param, actualValue));
     });
 
+    // Add extracted parameters to paramsMap
     [...extractedPathParams, ...extractedQueryParams].forEach((param) => {
       const key = `${param.in}:${param.name}`;
       if (!paramsMap.has(key)) {
         paramsMap.set(key, param);
       }
     });
+
+    // Handle examples dynamically
+    const existingResponse = existingOperation.responses?.[
+      capture.response.status
+    ] as OpenAPIV3.ResponseObject;
+
+    const currentExamples = existingResponse?.content?.['application/json']?.examples || {};
+    const exampleKey = `example${Object.keys(currentExamples).length + 1}`;
 
     const operation: OpenAPIV3.OperationObject = {
       ...existingOperation,
@@ -208,41 +225,26 @@ export class JestRestDocs {
           content: {
             'application/json': {
               schema: inferSchema(capture.response.body),
-              ...(this.currentMetadata?.responses?.[capture.response.status]?.content?.[
-                'application/json'
-              ]?.example
-                ? {}
-                : { example: capture.response.body }),
+              examples: {
+                ...currentExamples,
+                [exampleKey]: {
+                  summary:
+                    this.currentMetadata?.summary ||
+                    `Example ${Object.keys(currentExamples).length + 1}`,
+                  value: capture.response.body,
+                },
+              },
             },
           },
         },
       },
     };
-
-    if (this.currentMetadata?.requestBody) {
-      operation.requestBody = {
-        ...this.currentMetadata.requestBody,
-        content: {
-          'application/json': {
-            ...this.currentMetadata.requestBody.content['application/json'],
-            ...(this.currentMetadata.requestBody.content['application/json'].example
-              ? {}
-              : { example: capture.request.body }),
-          },
-        },
-      };
-    } else if (capture.request.body) {
-      operation.requestBody = {
-        content: {
-          'application/json': {
-            schema: inferSchema(capture.request.body),
-            example: capture.request.body,
-          },
-        },
-      };
-    }
-
     this.paths[pathTemplate][method] = operation;
+    const tempFilePath = path.join(tempDir, `docs-${process.pid}.json`);
+    const existingData = fs.existsSync(tempFilePath) ? await fs.readJson(tempFilePath) : {};
+    const newData = { ...existingData, paths: this.paths };
+
+    await fs.writeJson(tempFilePath, newData, { spaces: 2 });
   }
 
   private loadExistingDocs() {
@@ -254,17 +256,28 @@ export class JestRestDocs {
   }
 
   async generateDocs() {
-    const existingPaths = this.paths;
+    const tempDir = path.resolve(__dirname, '../temp-docs');
+    const outputFilePath = path.join(this.outputDir, 'openapi.json');
+    const files = await fs.readdir(tempDir);
 
-    const mergedPaths = { ...existingPaths, ...this.paths };
-
+    const mergedPaths: Record<string, any> = {};
+    for (const file of files) {
+      if (file.startsWith('docs-') && file.endsWith('.json')) {
+        const data = await fs.readJson(path.join(tempDir, file));
+        for (const [path, methods] of Object.entries(data)) {
+          if (!mergedPaths[path]) {
+            mergedPaths[path] = {};
+          }
+          Object.assign(mergedPaths[path], methods);
+        }
+      }
+    }
     const spec: OpenAPIV3.Document = {
       openapi: this.openapi.openapi || '3.0.0',
       info: {
         title: this.openapi.info?.title || 'API Documentation',
         version: this.openapi.info?.version || '1.0.0',
         description: this.openapi.info?.description,
-        ...this.openapi.info,
       },
       servers: this.openapi.servers || [
         {

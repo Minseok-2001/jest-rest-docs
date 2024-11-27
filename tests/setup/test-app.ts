@@ -84,6 +84,10 @@ router.post('/api/users', (req: CreateUserRequest, res: Response) => {
     return res.status(409).json({ error: 'Email already exists' });
   }
 
+  if (typeof name !== 'string') {
+    return res.status(400).json({ error: 'Name must be a string' });
+  }
+
   const newUser: User = {
     id: nextId++,
     name,
