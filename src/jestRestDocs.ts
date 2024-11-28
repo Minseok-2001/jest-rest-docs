@@ -166,9 +166,6 @@ export class JestRestDocs {
       };
     }
   ) {
-    console.log('captureApiDoc called:', method, pathTemplate);
-    // console.log('Current paths:', this.paths);
-
     // Initialize path if not exists
     if (!this.paths[pathTemplate]) {
       this.paths[pathTemplate] = {};
@@ -203,12 +200,36 @@ export class JestRestDocs {
     });
 
     // Handle examples dynamically
-    const existingResponse = existingOperation.responses?.[
+    const existingResponses = existingOperation.responses || {};
+    const existingResponseForStatus = existingResponses[
       capture.response.status
     ] as OpenAPIV3.ResponseObject;
 
-    const currentExamples = existingResponse?.content?.['application/json']?.examples || {};
-    const exampleKey = `example${Object.keys(currentExamples).length + 1}`;
+    const newExampleKey = `example${Object.keys(existingResponseForStatus?.content?.['application/json']?.examples || {}).length + 1}`;
+    const updatedExamples = {
+      ...existingResponseForStatus?.content?.['application/json']?.examples,
+      [newExampleKey]: {
+        summary: this.currentMetadata?.summary || `Example ${newExampleKey}`,
+        value: capture.response.body,
+      },
+    };
+
+    const updatedResponseForStatus: OpenAPIV3.ResponseObject = {
+      ...existingResponseForStatus,
+      description: this.currentMetadata?.description || `${capture.response.status} response`,
+      content: {
+        ...existingResponseForStatus?.content,
+        'application/json': {
+          schema: inferSchema(capture.response.body),
+          examples: updatedExamples,
+        },
+      },
+    };
+
+    const updatedResponses = {
+      ...existingResponses,
+      [capture.response.status]: updatedResponseForStatus,
+    };
 
     const operation: OpenAPIV3.OperationObject = {
       ...existingOperation,
@@ -218,33 +239,17 @@ export class JestRestDocs {
       deprecated: this.currentMetadata?.deprecated,
       parameters: Array.from(paramsMap.values()),
       security: this.currentMetadata?.security,
-      responses: {
-        ...existingOperation.responses,
-        [capture.response.status]: {
-          description: this.currentMetadata?.description || `${capture.response.status} response`,
-          content: {
-            'application/json': {
-              schema: inferSchema(capture.response.body),
-              examples: {
-                ...currentExamples,
-                [exampleKey]: {
-                  summary:
-                    this.currentMetadata?.summary ||
-                    `Example ${Object.keys(currentExamples).length + 1}`,
-                  value: capture.response.body,
-                },
-              },
-            },
-          },
-        },
-      },
+      responses: updatedResponses,
     };
+
     this.paths[pathTemplate][method] = operation;
+
+    // Write updated paths to temporary file
     const tempFilePath = path.join(tempDir, `docs-${process.pid}.json`);
     const existingData = fs.existsSync(tempFilePath) ? await fs.readJson(tempFilePath) : {};
     const newData = { ...existingData, paths: this.paths };
 
-    // Atomic file write
+    // Atomic file write to prevent corruption
     const tempFile = `${tempFilePath}.tmp`;
     await fs.writeJson(tempFile, newData, { spaces: 2 });
     await fs.rename(tempFile, tempFilePath);
@@ -261,28 +266,56 @@ export class JestRestDocs {
   async generateDocs() {
     const tempDir = path.resolve(__dirname, '../temp-docs');
     const outputFilePath = path.join(this.outputDir, 'openapi.json');
+
+    // Ensure temporary directory exists
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    // Read all temporary files
     const files = await fs.readdir(tempDir);
 
-    const mergedPaths: Record<string, any> = {};
+    // Initialize merged paths
+    const mergedPaths: Record<string, OpenAPIV3.PathItemObject> = {};
 
     for (const file of files) {
       if (file.startsWith('docs-') && file.endsWith('.json')) {
-        const data = await fs.readJson(path.join(tempDir, file));
-        const paths = data.paths || {};
+        const filePath = path.join(tempDir, file);
 
-        for (const [path, methods] of Object.entries(paths)) {
-          if (!mergedPaths[path]) {
-            mergedPaths[path] = {};
+        // Parse JSON file and merge paths
+        try {
+          const data = await fs.readJson(filePath);
+          const paths = data.paths as Record<string, OpenAPIV3.PathItemObject>;
+
+          for (const [path, methods] of Object.entries(paths)) {
+            if (!mergedPaths[path]) {
+              mergedPaths[path] = {};
+            }
+
+            // Merge methods (e.g., GET, POST, etc.)
+            Object.entries(methods).forEach(([method, operation]) => {
+              const methodKey = method as keyof OpenAPIV3.PathItemObject;
+              if (!mergedPaths[path][methodKey]) {
+                mergedPaths[path][methodKey] = operation as any;
+              } else {
+                // Merge responses if method already exists
+                const existingOperation = mergedPaths[path][methodKey] as OpenAPIV3.OperationObject;
+                const newOperation = operation as OpenAPIV3.OperationObject;
+
+                existingOperation.responses = {
+                  ...existingOperation.responses,
+                  ...newOperation.responses,
+                };
+              }
+            });
           }
-          for (const [method, operation] of Object.entries(methods as Record<string, any>)) {
-            mergedPaths[path][method] = {
-              ...mergedPaths[path][method],
-              ...operation, // 병합
-            };
-          }
+        } catch (err) {
+          console.error(`Failed to read or parse ${filePath}:`, err);
         }
       }
     }
+
+    // Construct final OpenAPI document
     const spec: OpenAPIV3.Document = {
       openapi: this.openapi.openapi || '3.0.0',
       info: {
@@ -300,8 +333,10 @@ export class JestRestDocs {
       components: this.openapi.components || {},
     };
 
-    await fs.writeJson(path.join(this.outputDir, 'openapi.json'), spec, {
-      spaces: 2,
-    });
+    // Write the OpenAPI spec to the output file
+    await fs.writeJson(outputFilePath, spec, { spaces: 2 });
+    await Promise.all(files.map((file) => fs.unlink(path.join(tempDir, file))));
+
+    console.log(`OpenAPI documentation written to ${outputFilePath}`);
   }
 }
