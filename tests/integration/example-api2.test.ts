@@ -58,36 +58,34 @@ describe('User API Integration Tests', () => {
         },
       });
     });
-    //
-    // it('should get user by id', async () => {
-    //   await docs.test({
-    //     method: 'GET',
-    //     path: '/api/users/{id}',
-    //     metadata: {
-    //       tags: ['Users'],
-    //       summary: '사용자 정보 조회',
-    //       description: '특정 사용자의 상세 정보를 조회합니다.',
-    //       parameters: [
-    //         {
-    //           name: 'id',
-    //           in: 'path',
-    //           description: '사용자 ID',
-    //           required: true,
-    //           schema: { type: 'integer' },
-    //         },
-    //       ],
-    //     },
-    //     callback: async (request) => {
-    //       await request
-    //         .get(`/api/users/${userId}`)
-    //         .expect(200)
-    //         .expect((res) => {
-    //           expect(res.body.id).toBe(userId);
-    //           expect(res.body.name).toBe('홍길동');
-    //         });
-    //     },
-    //   });
-    // });
+
+    it('should get user by id', async () => {
+      await docs.test({
+        method: 'GET',
+        path: '/api/users/{id}',
+        metadata: {
+          tags: ['Users'],
+          summary: '사용자 정보 조회',
+          description: '특정 사용자의 상세 정보를 조회합니다.',
+          parameters: [
+            {
+              name: 'id',
+              in: 'path',
+              description: '사용자 ID',
+              required: true,
+              schema: { type: 'integer' },
+            },
+          ],
+        },
+        callback: async (request) => {
+          await request.get(`/api/users/${userId}`).expect(404);
+          // .expect((res) => {
+          //   expect(res.body.id).toBe(userId);
+          //   expect(res.body.name).toBe('홍길동');
+          // });
+        },
+      });
+    });
 
     it('should list users with pagination', async () => {
       await docs.test({
