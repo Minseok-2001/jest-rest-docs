@@ -1,5 +1,4 @@
 import { OpenAPIV3 } from 'openapi-types';
-import { getData, updateData } from './utils/sharedMemory';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import supertest, { Response, SuperTest, Test } from 'supertest';
@@ -199,13 +198,31 @@ export class JestRestDocs {
       }
     });
 
-    // Handle examples dynamically
+    // Handle requestBody
+    let requestBody: OpenAPIV3.RequestBodyObject | undefined = undefined;
+    if (capture.request.body) {
+      requestBody = {
+        description: this.currentMetadata?.description || 'Request body',
+        content: {
+          'application/json': {
+            schema: inferSchema(capture.request.body),
+            example: capture.request.body,
+          },
+        },
+        required: true, // You can modify this based on your API's requirements
+      };
+    }
+
+    // Handle responses dynamically
     const existingResponses = existingOperation.responses || {};
     const existingResponseForStatus = existingResponses[
       capture.response.status
     ] as OpenAPIV3.ResponseObject;
 
-    const newExampleKey = `example${Object.keys(existingResponseForStatus?.content?.['application/json']?.examples || {}).length + 1}`;
+    const newExampleKey = `example${
+      Object.keys(existingResponseForStatus?.content?.['application/json']?.examples || {}).length +
+      1
+    }`;
     const updatedExamples = {
       ...existingResponseForStatus?.content?.['application/json']?.examples,
       [newExampleKey]: {
@@ -239,6 +256,7 @@ export class JestRestDocs {
       deprecated: this.currentMetadata?.deprecated,
       parameters: Array.from(paramsMap.values()),
       security: this.currentMetadata?.security,
+      requestBody, // Add requestBody here
       responses: updatedResponses,
     };
 
@@ -282,7 +300,6 @@ export class JestRestDocs {
       if (file.startsWith('docs-') && file.endsWith('.json')) {
         const filePath = path.join(tempDir, file);
 
-        // Parse JSON file and merge paths
         try {
           const data = await fs.readJson(filePath);
           const paths = data.paths as Record<string, OpenAPIV3.PathItemObject>;
@@ -292,20 +309,63 @@ export class JestRestDocs {
               mergedPaths[path] = {};
             }
 
-            // Merge methods (e.g., GET, POST, etc.)
             Object.entries(methods).forEach(([method, operation]) => {
               const methodKey = method as keyof OpenAPIV3.PathItemObject;
+
               if (!mergedPaths[path][methodKey]) {
                 mergedPaths[path][methodKey] = operation as any;
               } else {
-                // Merge responses if method already exists
                 const existingOperation = mergedPaths[path][methodKey] as OpenAPIV3.OperationObject;
                 const newOperation = operation as OpenAPIV3.OperationObject;
 
+                existingOperation.description = [
+                  existingOperation.description,
+                  newOperation.description,
+                ]
+                  .filter(Boolean)
+                  .join('\n\n'); // Merge descriptions with newline
+
+                existingOperation.summary = Array.from(
+                  new Set([existingOperation.summary, newOperation.summary].filter(Boolean))
+                ).join('; '); // Merge summaries into a single string
+
+                // Responses 병합
                 existingOperation.responses = {
                   ...existingOperation.responses,
-                  ...newOperation.responses,
+                  ...Object.entries(newOperation.responses || {}).reduce(
+                    (acc, [status, response]) => {
+                      const existingResponse = existingOperation.responses?.[
+                        status
+                      ] as OpenAPIV3.ResponseObject;
+                      const newResponse = response as OpenAPIV3.ResponseObject;
+
+                      acc[status] = {
+                        ...existingResponse,
+                        ...newResponse,
+                        content: {
+                          ...existingResponse?.content,
+                          ...newResponse.content,
+                        },
+                      };
+
+                      return acc;
+                    },
+                    {} as OpenAPIV3.ResponsesObject
+                  ),
                 };
+
+                // Tags 병합
+                existingOperation.tags = Array.from(
+                  new Set([...(existingOperation.tags || []), ...(newOperation.tags || [])])
+                );
+
+                // Parameters 병합
+                existingOperation.parameters = Array.from(
+                  new Set([
+                    ...(existingOperation.parameters || []),
+                    ...(newOperation.parameters || []),
+                  ])
+                );
               }
             });
           }
