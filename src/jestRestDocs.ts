@@ -298,45 +298,14 @@ export class JestRestDocs {
               if (!mergedPaths[path][methodKey]) {
                 mergedPaths[path][methodKey] = operation as any;
               } else {
+                // Merge responses if method already exists
                 const existingOperation = mergedPaths[path][methodKey] as OpenAPIV3.OperationObject;
                 const newOperation = operation as OpenAPIV3.OperationObject;
 
-                // Enhanced merge logic for responses
                 existingOperation.responses = {
                   ...existingOperation.responses,
-                  ...Object.entries(newOperation.responses || {}).reduce(
-                    (acc, [status, response]) => {
-                      const existingResponse = existingOperation.responses?.[
-                        status
-                      ] as OpenAPIV3.ResponseObject;
-                      const newResponse = response as OpenAPIV3.ResponseObject;
-
-                      // Merge response content
-                      acc[status] = {
-                        ...existingResponse,
-                        ...newResponse,
-                        content: {
-                          ...existingResponse?.content,
-                          ...newResponse.content,
-                        },
-                      };
-
-                      return acc;
-                    },
-                    {} as OpenAPIV3.ResponsesObject
-                  ),
+                  ...newOperation.responses,
                 };
-
-                // Optionally merge tags, parameters, or other properties if needed
-                existingOperation.tags = Array.from(
-                  new Set([...(existingOperation.tags || []), ...(newOperation.tags || [])])
-                );
-                existingOperation.parameters = Array.from(
-                  new Set([
-                    ...(existingOperation.parameters || []),
-                    ...(newOperation.parameters || []),
-                  ])
-                );
               }
             });
           }
