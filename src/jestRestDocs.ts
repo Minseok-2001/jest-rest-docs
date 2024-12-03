@@ -12,7 +12,7 @@ import {
   extractQueryParameters,
   mergeParameterWithExample,
 } from './utils/schemaUtils';
-const tempDir = path.resolve(__dirname, '../temp-docs');
+const tempDir = path.resolve(process.cwd(), './temp-docs');
 
 export class JestRestDocs {
   private openapi: Partial<OpenAPIV3.Document>;
@@ -25,8 +25,8 @@ export class JestRestDocs {
   constructor(options: {
     outputDir: string;
     openapi: Partial<OpenAPIV3.Document>;
+    serverInstance: http.Server;
     baseUrl?: string;
-    serverInstance?: any;
   }) {
     this.outputDir = options.outputDir;
     this.openapi = options.openapi;
@@ -282,7 +282,6 @@ export class JestRestDocs {
   }
 
   async generateDocs() {
-    const tempDir = path.resolve(__dirname, '../temp-docs');
     const outputFilePath = path.join(this.outputDir, 'openapi.json');
 
     // Ensure temporary directory exists
