@@ -269,7 +269,7 @@ export class JestRestDocs {
 
     // Atomic file write to prevent corruption
     const tempFile = `${tempFilePath}.tmp`;
-    await fs.writeJson(tempFile, newData, { spaces: 2 });
+    await fs.writeJson(tempFile, newData, { spaces: 2, mode: 0o644 });
     await fs.rename(tempFile, tempFilePath);
   }
 
@@ -393,7 +393,7 @@ export class JestRestDocs {
     };
 
     // Write the OpenAPI spec to the output file
-    await fs.writeJson(outputFilePath, spec, { spaces: 2 });
+    await fs.writeJson(outputFilePath, spec, { spaces: 2, mode: 0o644 });
     await Promise.all(files.map((file) => fs.unlink(path.join(tempDir, file))));
 
     console.log(`OpenAPI documentation written to ${outputFilePath}`);
