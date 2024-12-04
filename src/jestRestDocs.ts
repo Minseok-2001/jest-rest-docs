@@ -52,7 +52,6 @@ export class JestRestDocs {
     const request = supertest(this.serverInstance);
     const lowercaseMethod = method.toLowerCase() as HTTPMethod;
 
-    // Store the metadata for this test
     this.currentMetadata = metadata;
 
     let capturedPath: string;
@@ -60,7 +59,6 @@ export class JestRestDocs {
     let capturedHeaders: Record<string, string> = {};
     let capturedQuery: Record<string, any> = {};
 
-    // Extend the test object with our capture logic
     const extendTest = (test: supertest.Test) => {
       const originalSend = test.send.bind(test);
       test.send = function (data: any) {
@@ -126,7 +124,6 @@ export class JestRestDocs {
       return test;
     };
 
-    // Create a proxy for the request object
     const proxy = new Proxy(request, {
       get(target: any, prop: string) {
         if (prop === lowercaseMethod) {
@@ -143,7 +140,6 @@ export class JestRestDocs {
     try {
       await callback(proxy as SuperTest<Test>);
     } finally {
-      // Clear the metadata after the test
       this.currentMetadata = undefined;
     }
   }
@@ -178,8 +174,8 @@ export class JestRestDocs {
     const operation: OpenAPIV3.OperationObject = {
       ...existingOperation,
       tags: this.currentMetadata?.tags,
-      summary: this.currentMetadata?.summary, // metadata.summary를 API의 summary로 사용
-      description: undefined, // metadata.description은 API description에 사용되지 않음
+      summary: this.currentMetadata?.summary,
+      description: undefined,
       deprecated: this.currentMetadata?.deprecated,
       parameters: Array.from(paramsMap.values()),
       security: this.currentMetadata?.security,
@@ -255,28 +251,27 @@ export class JestRestDocs {
   ): OpenAPIV3.ResponsesObject {
     const status = capture.response.status;
 
-    // Jest 테스트 이름을 기본 summary로 사용
-    const testName = expect.getState().currentTestName || 'Default Test Name';
-
-    // metadata.responses에서 현재 status에 해당하는 응답 가져오기
-    const metadataResponse = this.currentMetadata?.responses?.[status];
-    const responseDescription = metadataResponse?.description || `${status} response`;
+    const testName = expect.getState().currentTestName || 'Unknown test';
 
     const existingResponseForStatus = existingResponses[status] as OpenAPIV3.ResponseObject;
     const existingExamples =
       existingResponseForStatus?.content?.['application/json']?.examples || {};
 
-    const newExampleKey = `example${Object.keys(existingExamples).length + 1}`;
+    const duplicateKey = Object.keys(existingExamples).find(
+      (key) => 'summary' in existingExamples[key] && existingExamples[key].summary === testName
+    );
+    const newExampleKey = duplicateKey || `example${Object.keys(existingExamples).length + 1}`;
+
     const updatedExamples = {
       ...existingExamples,
       [newExampleKey]: {
-        summary: testName, // 테스트 이름을 example의 summary로 사용
+        summary: testName,
         value: capture.response.body,
       },
     };
 
     const updatedResponse: OpenAPIV3.ResponseObject = {
-      description: responseDescription,
+      description: this.currentMetadata?.responses?.[status]?.description || `${status} response`,
       content: {
         'application/json': {
           schema: inferSchema(capture.response.body),
@@ -312,15 +307,12 @@ export class JestRestDocs {
   async generateDocs() {
     const outputFilePath = path.join(this.outputDir, 'openapi.json');
 
-    // Ensure temporary directory exists
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
 
-    // Read all temporary files
     const files = await fs.readdir(tempDir);
 
-    // Initialize merged paths
     const mergedPaths: Record<string, OpenAPIV3.PathItemObject> = {};
 
     for (const file of files) {
@@ -350,13 +342,12 @@ export class JestRestDocs {
                   newOperation.description,
                 ]
                   .filter(Boolean)
-                  .join('\n\n'); // Merge descriptions with newline
+                  .join('\n\n');
 
                 existingOperation.summary = Array.from(
                   new Set([existingOperation.summary, newOperation.summary].filter(Boolean))
-                ).join('; '); // Merge summaries into a single string
+                ).join('; ');
 
-                // Responses 병합
                 existingOperation.responses = {
                   ...existingOperation.responses,
                   ...Object.entries(newOperation.responses || {}).reduce(
@@ -381,12 +372,10 @@ export class JestRestDocs {
                   ),
                 };
 
-                // Tags 병합
                 existingOperation.tags = Array.from(
                   new Set([...(existingOperation.tags || []), ...(newOperation.tags || [])])
                 );
 
-                // Parameters 병합
                 existingOperation.parameters = Array.from(
                   new Set([
                     ...(existingOperation.parameters || []),
@@ -402,7 +391,6 @@ export class JestRestDocs {
       }
     }
 
-    // Construct final OpenAPI document
     const spec: OpenAPIV3.Document = {
       openapi: this.openapi.openapi || '3.0.0',
       info: {
@@ -420,7 +408,6 @@ export class JestRestDocs {
       components: this.openapi.components || {},
     };
 
-    // Write the OpenAPI spec to the output file
     await fs.writeJson(outputFilePath, spec, { spaces: 2, mode: 0o644 });
     await Promise.all(files.map((file) => fs.unlink(path.join(tempDir, file))));
 
