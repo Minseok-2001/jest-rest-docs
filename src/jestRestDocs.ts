@@ -147,7 +147,6 @@ export class JestRestDocs {
       this.currentMetadata = undefined;
     }
   }
-
   private async captureApiDoc(
     method: HTTPMethod,
     pathTemplate: string,
@@ -165,19 +164,49 @@ export class JestRestDocs {
       };
     }
   ) {
-    // Initialize path if not exists
     if (!this.paths[pathTemplate]) {
       this.paths[pathTemplate] = {};
     }
 
     const existingOperation = (this.paths[pathTemplate][method] as OpenAPIV3.OperationObject) || {};
+
+    const paramsMap = this.mergeParameters(pathTemplate, capture);
+    const requestBody = this.generateRequestBody(capture.request.body);
+
+    const responses = this.mergeResponses(existingOperation.responses || {}, capture);
+
+    const operation: OpenAPIV3.OperationObject = {
+      ...existingOperation,
+      tags: this.currentMetadata?.tags,
+      summary: this.currentMetadata?.summary, // metadata.summary를 API의 summary로 사용
+      description: undefined, // metadata.description은 API description에 사용되지 않음
+      deprecated: this.currentMetadata?.deprecated,
+      parameters: Array.from(paramsMap.values()),
+      security: this.currentMetadata?.security,
+      requestBody,
+      responses,
+    };
+
+    this.paths[pathTemplate][method] = operation;
+
+    await this.writeTemporaryDocs();
+  }
+
+  private mergeParameters(
+    pathTemplate: string,
+    capture: {
+      request: {
+        path: string;
+        query?: Record<string, any>;
+      };
+    }
+  ): Map<string, OpenAPIV3.ParameterObject> {
     const metadataParams = this.currentMetadata?.parameters || [];
     const extractedPathParams = extractPathParameters(pathTemplate, capture.request.path);
     const extractedQueryParams = extractQueryParameters(capture.request.query || {});
 
     const paramsMap = new Map<string, OpenAPIV3.ParameterObject>();
 
-    // Merge metadata parameters with actual values
     metadataParams.forEach((param) => {
       const key = `${param.in}:${param.name}`;
       const actualValue =
@@ -190,7 +219,6 @@ export class JestRestDocs {
       paramsMap.set(key, mergeParameterWithExample(param, actualValue));
     });
 
-    // Add extracted parameters to paramsMap
     [...extractedPathParams, ...extractedQueryParams].forEach((param) => {
       const key = `${param.in}:${param.name}`;
       if (!paramsMap.has(key)) {
@@ -198,44 +226,58 @@ export class JestRestDocs {
       }
     });
 
-    // Handle requestBody
-    let requestBody: OpenAPIV3.RequestBodyObject | undefined = undefined;
-    if (capture.request.body) {
-      requestBody = {
-        description: this.currentMetadata?.description || 'Request body',
-        content: {
-          'application/json': {
-            schema: inferSchema(capture.request.body),
-            example: capture.request.body,
-          },
+    return paramsMap;
+  }
+
+  private generateRequestBody(body?: any): OpenAPIV3.RequestBodyObject | undefined {
+    if (!body) return undefined;
+
+    return {
+      description: this.currentMetadata?.description || 'Request body',
+      content: {
+        'application/json': {
+          schema: inferSchema(body),
+          example: body,
         },
-        required: true, // You can modify this based on your API's requirements
+      },
+      required: true,
+    };
+  }
+
+  private mergeResponses(
+    existingResponses: OpenAPIV3.ResponsesObject,
+    capture: {
+      response: {
+        status: number;
+        body: any;
       };
     }
+  ): OpenAPIV3.ResponsesObject {
+    const status = capture.response.status;
 
-    // Handle responses dynamically
-    const existingResponses = existingOperation.responses || {};
-    const existingResponseForStatus = existingResponses[
-      capture.response.status
-    ] as OpenAPIV3.ResponseObject;
+    // Jest 테스트 이름을 기본 summary로 사용
+    const testName = expect.getState().currentTestName || 'Default Test Name';
 
-    const newExampleKey = `example${
-      Object.keys(existingResponseForStatus?.content?.['application/json']?.examples || {}).length +
-      1
-    }`;
+    // metadata.responses에서 현재 status에 해당하는 응답 가져오기
+    const metadataResponse = this.currentMetadata?.responses?.[status];
+    const responseDescription = metadataResponse?.description || `${status} response`;
+
+    const existingResponseForStatus = existingResponses[status] as OpenAPIV3.ResponseObject;
+    const existingExamples =
+      existingResponseForStatus?.content?.['application/json']?.examples || {};
+
+    const newExampleKey = `example${Object.keys(existingExamples).length + 1}`;
     const updatedExamples = {
-      ...existingResponseForStatus?.content?.['application/json']?.examples,
+      ...existingExamples,
       [newExampleKey]: {
-        summary: this.currentMetadata?.summary || `Example ${newExampleKey}`,
+        summary: testName, // 테스트 이름을 example의 summary로 사용
         value: capture.response.body,
       },
     };
 
-    const updatedResponseForStatus: OpenAPIV3.ResponseObject = {
-      ...existingResponseForStatus,
-      description: this.currentMetadata?.description || `${capture.response.status} response`,
+    const updatedResponse: OpenAPIV3.ResponseObject = {
+      description: responseDescription,
       content: {
-        ...existingResponseForStatus?.content,
         'application/json': {
           schema: inferSchema(capture.response.body),
           examples: updatedExamples,
@@ -243,31 +285,17 @@ export class JestRestDocs {
       },
     };
 
-    const updatedResponses = {
+    return {
       ...existingResponses,
-      [capture.response.status]: updatedResponseForStatus,
+      [status]: updatedResponse,
     };
+  }
 
-    const operation: OpenAPIV3.OperationObject = {
-      ...existingOperation,
-      tags: this.currentMetadata?.tags,
-      summary: this.currentMetadata?.summary,
-      description: this.currentMetadata?.description,
-      deprecated: this.currentMetadata?.deprecated,
-      parameters: Array.from(paramsMap.values()),
-      security: this.currentMetadata?.security,
-      requestBody, // Add requestBody here
-      responses: updatedResponses,
-    };
-
-    this.paths[pathTemplate][method] = operation;
-
-    // Write updated paths to temporary file
+  private async writeTemporaryDocs() {
     const tempFilePath = path.join(tempDir, `docs-${process.pid}.json`);
     const existingData = fs.existsSync(tempFilePath) ? await fs.readJson(tempFilePath) : {};
     const newData = { ...existingData, paths: this.paths };
 
-    // Atomic file write to prevent corruption
     const tempFile = `${tempFilePath}.tmp`;
     await fs.writeJson(tempFile, newData, { spaces: 2, mode: 0o644 });
     await fs.rename(tempFile, tempFilePath);
