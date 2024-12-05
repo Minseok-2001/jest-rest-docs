@@ -298,9 +298,26 @@ export class JestRestDocs {
 
   private loadExistingDocs() {
     const docPath = path.join(this.outputDir, 'openapi.json');
+
     if (fs.existsSync(docPath)) {
-      const existingDoc = fs.readJsonSync(docPath) as OpenAPIV3.Document;
-      this.paths = existingDoc.paths as Record<string, OpenAPIV3.PathItemObject>;
+      try {
+        const existingDoc = fs.readJsonSync(docPath) as OpenAPIV3.Document;
+
+        // Ensure paths is a valid object
+        if (existingDoc.paths) {
+          this.paths = existingDoc.paths as Record<string, OpenAPIV3.PathItemObject>;
+          console.log('Existing OpenAPI documentation loaded:', docPath);
+        } else {
+          console.warn('No "paths" object found in the existing OpenAPI documentation.');
+          this.paths = {};
+        }
+      } catch (error) {
+        console.error('Failed to load existing OpenAPI documentation:', error);
+        this.paths = {};
+      }
+    } else {
+      console.warn('No existing OpenAPI documentation found at:', docPath);
+      this.paths = {};
     }
   }
 
