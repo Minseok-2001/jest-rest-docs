@@ -1,129 +1,198 @@
-import * as http from 'http';
-import * as fs from 'fs-extra';
-import supertest from 'supertest';
 import { OpenAPIV3 } from 'openapi-types';
+import express from 'express';
+import supertest from 'supertest';
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import * as http from 'http';
 import { JestRestDocs } from '../../src';
 
 jest.mock('fs-extra');
 
+const mockOpenAPI: Partial<OpenAPIV3.Document> = {
+  openapi: '3.0.0',
+  info: {
+    title: 'Test API',
+    version: '1.0.0',
+  },
+  paths: {},
+};
+
+const mockServer = express();
+mockServer.get('/test', (req, res) => {
+  res.json({ message: 'Test successful' });
+});
+const serverInstance = http.createServer(mockServer);
+
+const outputDir = path.resolve('./test-output');
+const jestRestDocs = new JestRestDocs({
+  outputDir,
+  openapi: mockOpenAPI,
+  serverInstance,
+});
+
 describe('JestRestDocs', () => {
-  let server: http.Server;
-  let restDocs: JestRestDocs;
-
-  beforeAll(() => {
-    server = http.createServer((req, res) => {
-      const { url, method } = req;
-
-      if (url === '/api/users' && method === 'POST') {
-        res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ id: 1, name: 'John Doe', email: 'john@example.com' }));
-      } else if (url === '/api/users' && method === 'GET') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify([{ id: 1, name: 'John Doe' }]));
-      } else {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Not Found' }));
-      }
-    });
-
-    server.listen(3000);
-
-    restDocs = new JestRestDocs({
-      outputDir: './output',
-      openapi: {
-        info: {
-          title: 'Test API',
-          version: '1.0.0',
-        },
-      },
-      serverInstance: server,
-    });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (fs.readdir as unknown as jest.Mock).mockResolvedValue([]);
+    (fs.readJson as jest.Mock).mockResolvedValue({});
+    (fs.writeJson as jest.Mock).mockResolvedValue(undefined);
   });
 
   afterAll(() => {
-    server.close();
+    serverInstance.close();
   });
 
-  it('should capture POST /api/users and generate OpenAPI docs', async () => {
-    await restDocs.test({
-      method: 'POST',
-      path: '/api/users',
+  it('should capture API documentation during a test', async () => {
+    await jestRestDocs.test({
+      method: 'get',
+      path: '/test',
       metadata: {
-        tags: ['Users'],
-        summary: 'Create a new user',
-        description: 'Creates a new user with the provided details.',
+        description: 'Get test endpoint',
+        tags: ['Test'],
       },
       callback: async (request) => {
-        await request.post('/api/users').send({
-          name: 'John Doe',
-          email: 'john@example.com',
-        });
+        const response = await request.get('/test');
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ message: 'Test successful' });
       },
     });
 
-    const tempFilePath = './temp-docs/docs-' + process.pid + '.json';
-    if (!(await fs.pathExists(tempFilePath))) {
-      throw new Error(`Temporary file not found at ${tempFilePath}`);
-    }
-
-    const capturedData = JSON.parse(await fs.readFile(tempFilePath, 'utf8'));
-    expect(capturedData.paths['/api/users'].post).toBeDefined();
+    expect(fs.writeJson).toHaveBeenCalledTimes(1);
+    const savedData = (fs.writeJson as jest.Mock).mock.calls[0][1];
+    expect(savedData.paths['/test']).toBeDefined();
+    expect(savedData.paths['/test'].get).toBeDefined();
+    expect(savedData.paths['/test'].get.responses[200]).toBeDefined();
   });
 
-  it('should capture GET /api/users and generate OpenAPI docs', async () => {
-    await restDocs.test({
-      method: 'GET',
-      path: '/api/users',
+  it('should merge responses correctly when same endpoint is tested multiple times', async () => {
+    await jestRestDocs.test({
+      method: 'get',
+      path: '/test',
       metadata: {
-        tags: ['Users'],
-        summary: 'Retrieve all users',
-        description: 'Retrieves a list of all users.',
+        description: 'First test of endpoint',
+        tags: ['Test'],
       },
       callback: async (request) => {
-        await request.get('/api/users');
+        const response = await request.get('/test');
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ message: 'Test successful' });
       },
     });
 
-    const tempFilePath = './temp-docs/docs-' + process.pid + '.json';
-    const capturedData = JSON.parse(await fs.readFile(tempFilePath, 'utf8'));
-    expect(capturedData.paths['/api/users'].get).toBeDefined();
-  });
-
-  it('should merge multiple responses for the same path', async () => {
-    // Simulate another file defining the same API
-    await restDocs.test({
-      method: 'POST',
-      path: '/api/users',
+    await jestRestDocs.test({
+      method: 'get',
+      path: '/test',
       metadata: {
-        tags: ['Users'],
-        summary: 'Error case for creating a user',
-        description: 'Handles errors when creating a new user.',
+        description: 'Second test of endpoint',
+        tags: ['Test'],
       },
       callback: async (request) => {
-        await request.post('/api/users').send({}).expect(400);
+        const response = await request.get('/test');
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ message: 'Test successful' });
       },
     });
 
-    await restDocs.generateDocs();
-
-    const finalSpecPath = './output/openapi.json';
-    const finalSpec = JSON.parse(await fs.readFile(finalSpecPath, 'utf8'));
-
-    const postOperation = finalSpec.paths['/api/users'].post;
-    expect(postOperation.responses['201']).toBeDefined();
-    expect(postOperation.responses['400']).toBeDefined();
+    expect(fs.writeJson).toHaveBeenCalledTimes(2);
+    const savedData = (fs.writeJson as jest.Mock).mock.calls[1][1];
+    expect(
+      savedData.paths['/test'].get.responses[200].content['application/json'].examples
+    ).toHaveProperty('example2');
   });
 
-  it('should generate OpenAPI documentation with all captured paths and methods', async () => {
-    await restDocs.generateDocs();
+  it('should write OpenAPI specification to output directory on generateDocs', async () => {
+    (fs.readdir as unknown as jest.Mock).mockResolvedValue(['docs-1.json', 'docs-2.json']);
+    (fs.readJson as jest.Mock).mockImplementation(async (filePath) => {
+      if (filePath.includes('docs-1.json')) {
+        return {
+          paths: {
+            '/test1': {
+              get: {
+                responses: {
+                  200: {
+                    description: 'Test 1 response',
+                    content: {
+                      'application/json': {
+                        schema: { type: 'object' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        };
+      }
+      if (filePath.includes('docs-2.json')) {
+        return {
+          paths: {
+            '/test2': {
+              get: {
+                responses: {
+                  200: {
+                    description: 'Test 2 response',
+                    content: {
+                      'application/json': {
+                        schema: { type: 'object' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        };
+      }
+    });
 
-    const finalSpecPath = './output/openapi.json';
-    const finalSpec = JSON.parse(await fs.readFile(finalSpecPath, 'utf8'));
+    await jestRestDocs.generateDocs();
 
-    expect(finalSpec.openapi).toBe('3.0.0');
-    expect(finalSpec.info.title).toBe('Test API');
-    expect(finalSpec.paths['/api/users']).toBeDefined();
-    expect(finalSpec.paths['/api/users'].post).toBeDefined();
-    expect(finalSpec.paths['/api/users'].get).toBeDefined();
+    expect(fs.writeJson).toHaveBeenCalledWith(
+      expect.stringContaining('openapi.json'),
+      expect.objectContaining({
+        openapi: '3.0.0',
+        paths: {
+          '/test1': expect.any(Object),
+          '/test2': expect.any(Object),
+        },
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it('should load existing OpenAPI documentation on initialization', () => {
+    const mockOpenAPIDocument = {
+      openapi: '3.0.0',
+      info: { title: 'Existing API', version: '1.0.0' },
+      paths: {
+        '/existing': {
+          get: {
+            responses: {
+              200: {
+                description: 'Existing response',
+                content: {
+                  'application/json': {
+                    schema: { type: 'object' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    jest.spyOn(fs, 'readJsonSync').mockReturnValue(mockOpenAPIDocument);
+
+    const docs = new JestRestDocs({
+      outputDir: './output',
+      openapi: { openapi: '3.0.0', info: { title: 'Test', version: '1.0.0' } },
+      serverInstance: {} as any,
+    });
+
+    expect(docs['paths']).toBeDefined();
+    expect(docs['paths']['/existing']).toBeDefined();
+    expect(docs['paths']['/existing']['get']).toBeDefined();
   });
 });
