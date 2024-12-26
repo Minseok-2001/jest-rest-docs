@@ -2,7 +2,6 @@ import { JestRestDocs } from '../../src';
 import { OpenAPIV3 } from 'openapi-types';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import supertest from 'supertest';
 import express from 'express';
 import * as http from 'http';
 
