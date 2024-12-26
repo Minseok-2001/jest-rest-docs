@@ -1,32 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it } from '@jest/globals';
 import { docs } from '../setup/setup';
 
 describe('User API Integration Tests', () => {
   let userId: number;
-  let adminToken: string;
-
-  beforeAll(async () => {
-    await docs.test({
-      method: 'POST',
-      path: '/api/admin/login',
-      metadata: {
-        tags: ['Admin'],
-        summary: '관리자 로그인',
-        description: '관리자 계정으로 로그인하여 인증 토큰을 발급받습니다.',
-      },
-      callback: async (request) => {
-        const response = await request
-          .post('/api/admin/login')
-          .send({
-            email: 'admin@example.com',
-            password: 'admin123',
-          })
-          .expect(200);
-
-        adminToken = response.body.token;
-      },
-    });
-  });
 
   describe('User CRUD Operations', () => {
     it('should create a new user', async () => {
@@ -78,11 +54,13 @@ describe('User API Integration Tests', () => {
           ],
         },
         callback: async (request) => {
-          await request.get(`/api/users/${userId}`).expect(404);
-          // .expect((res) => {
-          //   expect(res.body.id).toBe(userId);
-          //   expect(res.body.name).toBe('홍길동');
-          // });
+          await request
+            .get(`/api/users/${userId}`)
+            .expect(404)
+            .expect((res) => {
+              expect(res.body.id).toBe(userId);
+              expect(res.body.name).toBe('홍길동');
+            });
         },
       });
     });
