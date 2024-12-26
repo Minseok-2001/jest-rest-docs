@@ -37,6 +37,7 @@ export class JestRestDocs {
     this.openapi = options.openapi;
     this.baseUrl = options.baseUrl || 'http://localhost:3000';
     this.serverInstance = options.serverInstance;
+    this.components = { schemas: {} };
     this.loadExistingDocs();
 
     fs.ensureDirSync(this.outputDir);
@@ -181,7 +182,7 @@ export class JestRestDocs {
 
     const responses = this.mergeResponses(existingResponses, capture);
 
-    // Description을 배열로 관리하여 중복 방지
+    // Description을 Set으로 관리하여 중복 방지
     const descriptions = new Set<string>();
     if (existingOperation?.description) {
       existingOperation.description.split('\n\n').forEach((desc) => descriptions.add(desc));
@@ -274,21 +275,19 @@ export class JestRestDocs {
   ): OpenAPIV3.ResponsesObject {
     const status = capture.response.status.toString();
 
-    const testName = expect.getState().currentTestName || 'Unknown test';
+    const testName = expect.getState().currentTestName || `Response${this.schemaCounter++}`;
 
-    // 스키마를 컴포넌트에 추가하고, 이름을 부여
-    const schemaName = `Response${this.schemaCounter++}`;
-    const schema = inferSchema(capture.response.body);
+    const sanitizedTestName = this.sanitizeSchemaName(testName);
     if (!this.components.schemas) {
       this.components.schemas = {};
     }
-    this.components.schemas[schemaName] = schema;
+    this.components.schemas[sanitizedTestName] = inferSchema(capture.response.body);
 
     const newResponse: OpenAPIV3.ResponseObject = {
       description: `${status} response`,
       content: {
         'application/json': {
-          schema: { $ref: `#/components/schemas/${schemaName}` },
+          schema: { $ref: `#/components/schemas/${sanitizedTestName}` },
           examples: {
             [testName]: {
               summary: testName,
@@ -306,6 +305,19 @@ export class JestRestDocs {
     const mergedResponses = deepMergeResponses(existingResponses, newResponses);
 
     return mergedResponses;
+  }
+
+  /**
+   * Sanitizes a test name to be a valid OpenAPI schema name.
+   * Removes or replaces invalid characters.
+   * @param name The original test name.
+   * @returns The sanitized schema name.
+   */
+  private sanitizeSchemaName(name: string): string {
+    return name
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .replace(/__+/g, '_')
+      .replace(/^_+|_+$/g, '');
   }
 
   private async writeTemporaryDocs() {
@@ -427,13 +439,10 @@ export class JestRestDocs {
 
           // Merge components
           if (components && components.schemas) {
-            if (!mergedComponents.schemas) {
-              mergedComponents.schemas = {};
-            }
+            mergedComponents.schemas = mergedComponents.schemas || {};
             for (const [schemaName, schema] of Object.entries(components.schemas)) {
               if (!mergedComponents.schemas[schemaName]) {
                 mergedComponents.schemas[schemaName] = schema;
-              } else {
               }
             }
           }

@@ -195,10 +195,31 @@ export function deepMergeSchemas(
     return schema1.type === 'array' ? schema1 : schema2;
   }
 
-  // If schemas differ, use oneOf
+  // If schemas differ, use oneOf and flatten existing oneOf if present
   console.log('Schemas differ. Using oneOf.');
+
+  let oneOfSchemas: OpenAPIV3.SchemaObject[] = [];
+
+  if (schema1.oneOf) {
+    oneOfSchemas = oneOfSchemas.concat(schema1.oneOf as any);
+  } else {
+    oneOfSchemas.push(schema1);
+  }
+
+  if (schema2.oneOf) {
+    oneOfSchemas = oneOfSchemas.concat(schema2.oneOf as any);
+  } else {
+    oneOfSchemas.push(schema2);
+  }
+
+  // Remove duplicate schemas based on their stringified content
+  oneOfSchemas = oneOfSchemas.filter(
+    (schema, index, self) =>
+      index === self.findIndex((s) => JSON.stringify(s) === JSON.stringify(schema))
+  );
+
   return {
-    oneOf: [schema1, schema2],
+    oneOf: oneOfSchemas,
   };
 }
 
