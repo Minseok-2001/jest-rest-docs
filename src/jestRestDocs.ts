@@ -25,7 +25,7 @@ export class JestRestDocs {
   private readonly baseUrl: string;
   private readonly serverInstance: http.Server;
   private currentMetadata?: ApiMetadata;
-  private schemaCounter: number = 1; // 고유한 스키마 이름 생성을 위한 카운터
+  private schemaCounter: number = 1; // Counter for unique schema names
 
   constructor(options: {
     outputDir: string;
@@ -45,6 +45,13 @@ export class JestRestDocs {
     fs.emptyDirSync(tempDir);
   }
 
+  /**
+   * Executes a test case and captures API documentation.
+   * @param method The HTTP method (e.g., GET, POST).
+   * @param path The API endpoint path.
+   * @param metadata Additional metadata for the API.
+   * @param callback The test function to execute.
+   */
   async test({
     method,
     path,
@@ -67,18 +74,21 @@ export class JestRestDocs {
     let capturedQuery: Record<string, any> = {};
 
     const extendTest = (test: supertest.Test) => {
+      // Capture request body
       const originalSend = test.send.bind(test);
       test.send = function (data: any) {
         capturedBody = data;
         return originalSend(data);
       };
 
+      // Capture query parameters
       const originalQuery = test.query.bind(test);
       test.query = function (params: Record<string, any>) {
         capturedQuery = params;
         return originalQuery(params);
       };
 
+      // Capture headers
       const originalSet = test.set.bind(test);
       const setSpy = function (
         field: 'Cookie' | string | IncomingHttpHeaders,
@@ -106,6 +116,7 @@ export class JestRestDocs {
 
       test.set = setSpy;
 
+      // Capture response and generate documentation
       const originalEnd = test.end.bind(test);
       test.end = (fn?: (err: Error, res: Response) => void) => {
         return originalEnd(async (err: Error, res: Response) => {
@@ -151,6 +162,12 @@ export class JestRestDocs {
     }
   }
 
+  /**
+   * Captures API documentation for a specific endpoint and method.
+   * @param method The HTTP method.
+   * @param pathTemplate The API endpoint path template.
+   * @param capture The captured request and response data.
+   */
   private async captureApiDoc(
     method: HTTPMethod,
     pathTemplate: string,
@@ -201,7 +218,7 @@ export class JestRestDocs {
       ...existingOperation,
       tags: this.currentMetadata?.tags,
       summary: this.currentMetadata?.summary,
-      description: Array.from(descriptions).join('\n\n'), // 중복 없이 결합
+      description: Array.from(descriptions).join('\n\n'), // Combine descriptions without duplication
       deprecated: this.currentMetadata?.deprecated,
       parameters: Array.from(paramsMap.values()),
       security: this.currentMetadata?.security,
@@ -213,6 +230,12 @@ export class JestRestDocs {
     await this.writeTemporaryDocs();
   }
 
+  /**
+   * Merges path and query parameters.
+   * @param pathTemplate The path template.
+   * @param capture The captured request data.
+   * @returns A map of merged parameters.
+   */
   private mergeParameters(
     pathTemplate: string,
     capture: {
@@ -250,6 +273,11 @@ export class JestRestDocs {
     return paramsMap;
   }
 
+  /**
+   * Generates the request body schema.
+   * @param body The request body data.
+   * @returns The RequestBodyObject or undefined.
+   */
   private generateRequestBody(body?: any): OpenAPIV3.RequestBodyObject | undefined {
     if (!body) return undefined;
 
@@ -268,6 +296,12 @@ export class JestRestDocs {
     };
   }
 
+  /**
+   * Merges response objects.
+   * @param existingResponses The existing responses.
+   * @param capture The captured response data.
+   * @returns The merged responses.
+   */
   private mergeResponses(
     existingResponses: OpenAPIV3.ResponsesObject,
     capture: {
@@ -324,6 +358,9 @@ export class JestRestDocs {
       .replace(/^_+|_+$/g, '');
   }
 
+  /**
+   * Writes the temporary documentation to a file.
+   */
   private async writeTemporaryDocs() {
     const tempFilePath = path.join(tempDir, `docs-${process.pid}.json`);
     const existingData = fs.existsSync(tempFilePath) ? await fs.readJson(tempFilePath) : {};
@@ -334,6 +371,9 @@ export class JestRestDocs {
     await fs.rename(tempFile, tempFilePath);
   }
 
+  /**
+   * Loads existing OpenAPI documentation if it exists.
+   */
   private loadExistingDocs() {
     const docPath = path.join(this.outputDir, 'openapi.json');
 
@@ -341,19 +381,16 @@ export class JestRestDocs {
       try {
         const existingDoc = fs.readJsonSync(docPath) as OpenAPIV3.Document;
 
-        // Ensure paths is a valid object
+        // Load paths
         if (existingDoc.paths) {
           this.paths = existingDoc.paths as Record<string, OpenAPIV3.PathItemObject>;
-          console.log('Existing OpenAPI documentation loaded:', docPath);
         } else {
-          console.warn('No "paths" object found in the existing OpenAPI documentation.');
           this.paths = {};
         }
 
-        // Load existing components
+        // Load components
         if (existingDoc.components && existingDoc.components.schemas) {
           this.components = existingDoc.components as OpenAPIV3.ComponentsObject;
-          console.log('Existing OpenAPI components loaded.');
         }
       } catch (error) {
         console.error('Failed to load existing OpenAPI documentation:', error);
@@ -367,6 +404,9 @@ export class JestRestDocs {
     }
   }
 
+  /**
+   * Generates the final OpenAPI documentation by merging temporary files.
+   */
   async generateDocs() {
     const outputFilePath = path.join(this.outputDir, 'openapi.json');
 
@@ -404,25 +444,25 @@ export class JestRestDocs {
                 const existingOperation = mergedPaths[path][methodKey] as OpenAPIV3.OperationObject;
                 const newOperation = operation as OpenAPIV3.OperationObject;
 
-                // summaries 병합
+                // Merge summaries
                 if (existingOperation.summary && newOperation.summary) {
                   existingOperation.summary = `${existingOperation.summary}; ${newOperation.summary}`;
                 } else {
                   existingOperation.summary = existingOperation.summary || newOperation.summary;
                 }
 
-                // responses 병합
+                // Merge responses
                 existingOperation.responses = deepMergeResponses(
                   existingOperation.responses || {},
                   newOperation.responses || {}
                 );
 
-                // tags 병합
+                // Merge tags
                 existingOperation.tags = Array.from(
                   new Set([...(existingOperation.tags || []), ...(newOperation.tags || [])])
                 );
 
-                // parameters 병합
+                // Merge parameters
                 existingOperation.parameters = Array.from(
                   new Set([
                     ...(existingOperation.parameters || []),
@@ -440,6 +480,7 @@ export class JestRestDocs {
               if (!mergedComponents.schemas[schemaName]) {
                 mergedComponents.schemas[schemaName] = schema;
               }
+              // If schema already exists, you can add logic to handle conflicts if necessary
             }
           }
         } catch (err) {

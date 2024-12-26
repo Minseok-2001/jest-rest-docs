@@ -31,7 +31,7 @@ export function inferSchema(data: any): OpenAPIV3.SchemaObject {
       if (Array.isArray(data)) {
         return {
           type: 'array',
-          items: data.length > 0 ? inferSchema(data[0]) : { type: 'object' }, // 기본 객체 스키마 설정
+          items: data.length > 0 ? inferSchema(data[0]) : { type: 'object' },
         };
       }
       const properties: Record<string, OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject> = {};
@@ -146,12 +146,6 @@ export function deepMergeSchemas(
   schema1: OpenAPIV3.SchemaObject,
   schema2: OpenAPIV3.SchemaObject
 ): OpenAPIV3.SchemaObject {
-  console.log(
-    'Merging schemas:',
-    JSON.stringify(schema1, null, 2),
-    JSON.stringify(schema2, null, 2)
-  );
-
   if (schemasAreEqual(schema1, schema2)) {
     return schema1;
   }
@@ -195,19 +189,16 @@ export function deepMergeSchemas(
     return schema1.type === 'array' ? schema1 : schema2;
   }
 
-  // If schemas differ, use oneOf and flatten existing oneOf if present
-  console.log('Schemas differ. Using oneOf.');
-
   let oneOfSchemas: OpenAPIV3.SchemaObject[] = [];
 
   if (schema1.oneOf) {
-    oneOfSchemas = oneOfSchemas.concat(schema1.oneOf as any);
+    oneOfSchemas = oneOfSchemas.concat(schema1.oneOf as OpenAPIV3.SchemaObject[]);
   } else {
     oneOfSchemas.push(schema1);
   }
 
   if (schema2.oneOf) {
-    oneOfSchemas = oneOfSchemas.concat(schema2.oneOf as any);
+    oneOfSchemas = oneOfSchemas.concat(schema2.oneOf as OpenAPIV3.SchemaObject[]);
   } else {
     oneOfSchemas.push(schema2);
   }
@@ -260,13 +251,22 @@ export function deepMergeResponseObjects(
   existingResponse: OpenAPIV3.ResponseObject,
   newResponse: OpenAPIV3.ResponseObject
 ): OpenAPIV3.ResponseObject {
-  console.log(
-    'Merging responses:',
-    JSON.stringify(existingResponse, null, 2),
-    JSON.stringify(newResponse, null, 2)
-  );
+  const descriptions = new Set<string>();
 
-  // Merge content
+  if (existingResponse.description) {
+    existingResponse.description
+      .split('\n\n')
+      .map((desc) => desc.trim())
+      .forEach((desc) => descriptions.add(desc));
+  }
+
+  if (newResponse.description) {
+    const newDesc = newResponse.description.trim();
+    descriptions.add(newDesc);
+  }
+
+  existingResponse.description = Array.from(descriptions).join('\n\n');
+
   if (existingResponse.content && newResponse.content) {
     for (const [contentType, newContent] of Object.entries(newResponse.content)) {
       if (existingResponse.content[contentType]) {
@@ -275,7 +275,6 @@ export function deepMergeResponseObjects(
 
         // Merge schemas
         if (existingContent.schema && newMediaContent.schema) {
-          console.log(`Merging schemas for content type: ${contentType}`);
           existingContent.schema = deepMergeSchemas(
             existingContent.schema as OpenAPIV3.SchemaObject,
             newMediaContent.schema as OpenAPIV3.SchemaObject
@@ -312,14 +311,14 @@ export function deepMergeResponses(
     if (merged[status]) {
       const existingResponse = merged[status];
       if (isReferenceObject(existingResponse) || isReferenceObject(newResponse)) {
-        // ReferenceObject인 경우 병합하지 않음
+        // Do not merge ReferenceObjects
         continue;
       }
 
       const existingResObj = existingResponse as OpenAPIV3.ResponseObject;
       const newResObj = newResponse as OpenAPIV3.ResponseObject;
 
-      // 기존 응답과 새로운 응답을 병합
+      // Merge the existing response with the new response
       merged[status] = deepMergeResponseObjects(existingResObj, newResObj);
     } else {
       merged[status] = newResponse;
