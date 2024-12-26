@@ -1,3 +1,4 @@
+// src/jestRestDocs.ts
 import { OpenAPIV3 } from 'openapi-types';
 import * as fs from 'fs-extra';
 import * as path from 'path';
@@ -11,16 +12,20 @@ import {
   extractPathParameters,
   extractQueryParameters,
   mergeParameterWithExample,
+  deepMergeResponses,
 } from './utils/schemaUtils';
+
 const tempDir = path.resolve(process.cwd(), './temp-docs');
 
 export class JestRestDocs {
   private openapi: Partial<OpenAPIV3.Document>;
   private paths: Record<string, OpenAPIV3.PathItemObject> = {};
+  private components: OpenAPIV3.ComponentsObject = { schemas: {} };
   private readonly outputDir: string;
   private readonly baseUrl: string;
   private readonly serverInstance: http.Server;
   private currentMetadata?: ApiMetadata;
+  private schemaCounter: number = 1; // 고유한 스키마 이름 생성을 위한 카운터
 
   constructor(options: {
     outputDir: string;
@@ -125,7 +130,7 @@ export class JestRestDocs {
     };
 
     const proxy = new Proxy(request, {
-      get(target: any, prop: string) {
+      get: (target: any, prop: string) => {
         if (prop === lowercaseMethod) {
           return (url: string) => {
             capturedPath = url;
@@ -143,6 +148,7 @@ export class JestRestDocs {
       this.currentMetadata = undefined;
     }
   }
+
   private async captureApiDoc(
     method: HTTPMethod,
     pathTemplate: string,
@@ -164,18 +170,32 @@ export class JestRestDocs {
       this.paths[pathTemplate] = {};
     }
 
-    const existingOperation = (this.paths[pathTemplate][method] as OpenAPIV3.OperationObject) || {};
+    const existingOperation = this.paths[pathTemplate][method] as
+      | OpenAPIV3.OperationObject
+      | undefined;
 
     const paramsMap = this.mergeParameters(pathTemplate, capture);
     const requestBody = this.generateRequestBody(capture.request.body);
 
-    const responses = this.mergeResponses(existingOperation.responses || {}, capture);
+    const existingResponses: OpenAPIV3.ResponsesObject = existingOperation?.responses || {};
+
+    const responses = this.mergeResponses(existingResponses, capture);
+
+    // Description을 배열로 관리하여 중복 방지
+    const descriptions = new Set<string>();
+    if (existingOperation?.description) {
+      existingOperation.description.split('\n\n').forEach((desc) => descriptions.add(desc));
+    }
+    if (this.currentMetadata?.description) {
+      descriptions.add(this.currentMetadata.description);
+    }
 
     const operation: OpenAPIV3.OperationObject = {
       ...existingOperation,
       tags: this.currentMetadata?.tags,
       summary: this.currentMetadata?.summary,
-      description: undefined,
+      // descriptions를 하나의 문자열로 결합
+      description: Array.from(descriptions).join('\n\n'),
       deprecated: this.currentMetadata?.deprecated,
       parameters: Array.from(paramsMap.values()),
       security: this.currentMetadata?.security,
@@ -228,11 +248,14 @@ export class JestRestDocs {
   private generateRequestBody(body?: any): OpenAPIV3.RequestBodyObject | undefined {
     if (!body) return undefined;
 
+    const schema = inferSchema(body);
+    if (!schema) return undefined;
+
     return {
       description: this.currentMetadata?.description || 'Request body',
       content: {
         'application/json': {
-          schema: inferSchema(body),
+          schema,
           example: body,
         },
       },
@@ -249,47 +272,46 @@ export class JestRestDocs {
       };
     }
   ): OpenAPIV3.ResponsesObject {
-    const status = capture.response.status;
+    const status = capture.response.status.toString();
 
     const testName = expect.getState().currentTestName || 'Unknown test';
 
-    const existingResponseForStatus = existingResponses[status] as OpenAPIV3.ResponseObject;
-    const existingExamples =
-      existingResponseForStatus?.content?.['application/json']?.examples || {};
+    // 스키마를 컴포넌트에 추가하고, 이름을 부여
+    const schemaName = `Response${this.schemaCounter++}`;
+    const schema = inferSchema(capture.response.body);
+    if (!this.components.schemas) {
+      this.components.schemas = {};
+    }
+    this.components.schemas[schemaName] = schema;
 
-    const duplicateKey = Object.keys(existingExamples).find(
-      (key) => 'summary' in existingExamples[key] && existingExamples[key].summary === testName
-    );
-    const newExampleKey = duplicateKey || `example${Object.keys(existingExamples).length + 1}`;
-
-    const updatedExamples = {
-      ...existingExamples,
-      [newExampleKey]: {
-        summary: testName,
-        value: capture.response.body,
-      },
-    };
-
-    const updatedResponse: OpenAPIV3.ResponseObject = {
-      description: this.currentMetadata?.responses?.[status]?.description || `${status} response`,
+    const newResponse: OpenAPIV3.ResponseObject = {
+      description: `${status} response`,
       content: {
         'application/json': {
-          schema: inferSchema(capture.response.body),
-          examples: updatedExamples,
+          schema: { $ref: `#/components/schemas/${schemaName}` },
+          examples: {
+            [testName]: {
+              summary: testName,
+              value: capture.response.body,
+            },
+          },
         },
       },
     };
 
-    return {
-      ...existingResponses,
-      [status]: updatedResponse,
+    const newResponses: OpenAPIV3.ResponsesObject = {
+      [status]: newResponse,
     };
+
+    const mergedResponses = deepMergeResponses(existingResponses, newResponses);
+
+    return mergedResponses;
   }
 
   private async writeTemporaryDocs() {
     const tempFilePath = path.join(tempDir, `docs-${process.pid}.json`);
     const existingData = fs.existsSync(tempFilePath) ? await fs.readJson(tempFilePath) : {};
-    const newData = { ...existingData, paths: this.paths };
+    const newData = { ...existingData, paths: this.paths, components: this.components };
 
     const tempFile = `${tempFilePath}.tmp`;
     await fs.writeJson(tempFile, newData, { spaces: 2, mode: 0o644 });
@@ -311,13 +333,21 @@ export class JestRestDocs {
           console.warn('No "paths" object found in the existing OpenAPI documentation.');
           this.paths = {};
         }
+
+        // Load existing components
+        if (existingDoc.components && existingDoc.components.schemas) {
+          this.components = existingDoc.components as OpenAPIV3.ComponentsObject;
+          console.log('Existing OpenAPI components loaded.');
+        }
       } catch (error) {
         console.error('Failed to load existing OpenAPI documentation:', error);
         this.paths = {};
+        this.components = { schemas: {} };
       }
     } else {
       console.warn('No existing OpenAPI documentation found at:', docPath);
       this.paths = {};
+      this.components = { schemas: {} };
     }
   }
 
@@ -330,7 +360,8 @@ export class JestRestDocs {
 
     const files = await fs.readdir(tempDir);
 
-    const mergedPaths: Record<string, OpenAPIV3.PathItemObject> = {};
+    const mergedPaths: Record<string, OpenAPIV3.PathItemObject> = { ...this.paths };
+    const mergedComponents: OpenAPIV3.ComponentsObject = { ...this.components };
 
     for (const file of files) {
       if (file.startsWith('docs-') && file.endsWith('.json')) {
@@ -339,7 +370,9 @@ export class JestRestDocs {
         try {
           const data = await fs.readJson(filePath);
           const paths = data.paths as Record<string, OpenAPIV3.PathItemObject>;
+          const components = data.components as OpenAPIV3.ComponentsObject;
 
+          // Merge paths
           for (const [path, methods] of Object.entries(paths)) {
             if (!mergedPaths[path]) {
               mergedPaths[path] = {};
@@ -349,50 +382,39 @@ export class JestRestDocs {
               const methodKey = method as keyof OpenAPIV3.PathItemObject;
 
               if (!mergedPaths[path][methodKey]) {
-                mergedPaths[path][methodKey] = operation as any;
+                (mergedPaths[path] as Record<string, OpenAPIV3.OperationObject>)[methodKey] =
+                  operation as OpenAPIV3.OperationObject;
               } else {
                 const existingOperation = mergedPaths[path][methodKey] as OpenAPIV3.OperationObject;
                 const newOperation = operation as OpenAPIV3.OperationObject;
 
-                existingOperation.description = [
-                  existingOperation.description,
-                  newOperation.description,
-                ]
-                  .filter(Boolean)
-                  .join('\n\n');
+                // Merge descriptions (already handled in captureApiDoc)
+                if (existingOperation.description && newOperation.description) {
+                  existingOperation.description = `${existingOperation.description}\n\n${newOperation.description}`;
+                } else {
+                  existingOperation.description =
+                    existingOperation.description || newOperation.description;
+                }
 
-                existingOperation.summary = Array.from(
-                  new Set([existingOperation.summary, newOperation.summary].filter(Boolean))
-                ).join('; ');
+                // Merge summaries
+                if (existingOperation.summary && newOperation.summary) {
+                  existingOperation.summary = `${existingOperation.summary}; ${newOperation.summary}`;
+                } else {
+                  existingOperation.summary = existingOperation.summary || newOperation.summary;
+                }
 
-                existingOperation.responses = {
-                  ...existingOperation.responses,
-                  ...Object.entries(newOperation.responses || {}).reduce(
-                    (acc, [status, response]) => {
-                      const existingResponse = existingOperation.responses?.[
-                        status
-                      ] as OpenAPIV3.ResponseObject;
-                      const newResponse = response as OpenAPIV3.ResponseObject;
+                // Merge responses
+                existingOperation.responses = deepMergeResponses(
+                  existingOperation.responses || {},
+                  newOperation.responses || {}
+                );
 
-                      acc[status] = {
-                        ...existingResponse,
-                        ...newResponse,
-                        content: {
-                          ...existingResponse?.content,
-                          ...newResponse.content,
-                        },
-                      };
-
-                      return acc;
-                    },
-                    {} as OpenAPIV3.ResponsesObject
-                  ),
-                };
-
+                // Merge tags
                 existingOperation.tags = Array.from(
                   new Set([...(existingOperation.tags || []), ...(newOperation.tags || [])])
                 );
 
+                // Merge parameters
                 existingOperation.parameters = Array.from(
                   new Set([
                     ...(existingOperation.parameters || []),
@@ -401,6 +423,19 @@ export class JestRestDocs {
                 );
               }
             });
+          }
+
+          // Merge components
+          if (components && components.schemas) {
+            if (!mergedComponents.schemas) {
+              mergedComponents.schemas = {};
+            }
+            for (const [schemaName, schema] of Object.entries(components.schemas)) {
+              if (!mergedComponents.schemas[schemaName]) {
+                mergedComponents.schemas[schemaName] = schema;
+              } else {
+              }
+            }
           }
         } catch (err) {
           console.error(`Failed to read or parse ${filePath}:`, err);
@@ -422,7 +457,7 @@ export class JestRestDocs {
         },
       ],
       paths: mergedPaths,
-      components: this.openapi.components || {},
+      components: mergedComponents,
     };
 
     await fs.writeJson(outputFilePath, spec, { spaces: 2, mode: 0o644 });

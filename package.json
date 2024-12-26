@@ -1,7 +1,6 @@
 {
   "name": "jest-rest-docs",
   "version": "1.0.0",
-  "type": "module",
   "description": "A Jest plugin for generating OpenAPI documentation from API tests.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
