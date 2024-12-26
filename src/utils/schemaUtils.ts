@@ -1,4 +1,3 @@
-// src/utils/schemaUtils.ts
 import { OpenAPIV3 } from 'openapi-types';
 
 /**

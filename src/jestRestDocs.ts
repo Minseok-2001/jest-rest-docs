@@ -1,4 +1,3 @@
-// src/jestRestDocs.ts
 import { OpenAPIV3 } from 'openapi-types';
 import * as fs from 'fs-extra';
 import * as path from 'path';
