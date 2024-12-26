@@ -266,13 +266,6 @@ export function deepMergeResponseObjects(
     JSON.stringify(newResponse, null, 2)
   );
 
-  // Merge descriptions
-  if (existingResponse.description && newResponse.description) {
-    existingResponse.description = `${existingResponse.description}\n\n${newResponse.description}`;
-  } else {
-    existingResponse.description = existingResponse.description || newResponse.description;
-  }
-
   // Merge content
   if (existingResponse.content && newResponse.content) {
     for (const [contentType, newContent] of Object.entries(newResponse.content)) {

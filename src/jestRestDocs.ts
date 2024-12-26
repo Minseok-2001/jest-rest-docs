@@ -42,6 +42,7 @@ export class JestRestDocs {
 
     fs.ensureDirSync(this.outputDir);
     fs.ensureDirSync(tempDir);
+    fs.emptyDirSync(tempDir);
   }
 
   async test({
@@ -182,28 +183,31 @@ export class JestRestDocs {
 
     const responses = this.mergeResponses(existingResponses, capture);
 
-    // Description을 Set으로 관리하여 중복 방지
     const descriptions = new Set<string>();
     if (existingOperation?.description) {
-      existingOperation.description.split('\n\n').forEach((desc) => descriptions.add(desc));
+      existingOperation.description
+        .split('\n\n')
+        .map((desc) => desc.trim())
+        .forEach((desc) => descriptions.add(desc));
     }
     if (this.currentMetadata?.description) {
-      descriptions.add(this.currentMetadata.description);
+      const newDesc = this.currentMetadata.description.trim();
+      if (!descriptions.has(newDesc)) {
+        descriptions.add(newDesc);
+      }
     }
 
     const operation: OpenAPIV3.OperationObject = {
       ...existingOperation,
       tags: this.currentMetadata?.tags,
       summary: this.currentMetadata?.summary,
-      // descriptions를 하나의 문자열로 결합
-      description: Array.from(descriptions).join('\n\n'),
+      description: Array.from(descriptions).join('\n\n'), // 중복 없이 결합
       deprecated: this.currentMetadata?.deprecated,
       parameters: Array.from(paramsMap.values()),
       security: this.currentMetadata?.security,
       requestBody,
       responses,
     };
-
     this.paths[pathTemplate][method] = operation;
 
     await this.writeTemporaryDocs();
@@ -400,33 +404,25 @@ export class JestRestDocs {
                 const existingOperation = mergedPaths[path][methodKey] as OpenAPIV3.OperationObject;
                 const newOperation = operation as OpenAPIV3.OperationObject;
 
-                // Merge descriptions (already handled in captureApiDoc)
-                if (existingOperation.description && newOperation.description) {
-                  existingOperation.description = `${existingOperation.description}\n\n${newOperation.description}`;
-                } else {
-                  existingOperation.description =
-                    existingOperation.description || newOperation.description;
-                }
-
-                // Merge summaries
+                // summaries 병합
                 if (existingOperation.summary && newOperation.summary) {
                   existingOperation.summary = `${existingOperation.summary}; ${newOperation.summary}`;
                 } else {
                   existingOperation.summary = existingOperation.summary || newOperation.summary;
                 }
 
-                // Merge responses
+                // responses 병합
                 existingOperation.responses = deepMergeResponses(
                   existingOperation.responses || {},
                   newOperation.responses || {}
                 );
 
-                // Merge tags
+                // tags 병합
                 existingOperation.tags = Array.from(
                   new Set([...(existingOperation.tags || []), ...(newOperation.tags || [])])
                 );
 
-                // Merge parameters
+                // parameters 병합
                 existingOperation.parameters = Array.from(
                   new Set([
                     ...(existingOperation.parameters || []),
