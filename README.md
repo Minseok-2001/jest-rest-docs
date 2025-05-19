@@ -4,6 +4,12 @@
 
 이 프로젝트는 Jest 기반의 API 테스트를 실행하면서 자동으로 OpenAPI 문서를 생성해주는 도구입니다.
 
+## 설치
+
+```bash
+npm install jest-rest-docs
+```
+
 ## 사용법
 
 ### 1. 테스트 작성
@@ -52,6 +58,29 @@ npm test
 - `tests/integration/example-api.test.ts` : 예시 테스트 코드
 - `tests/setup/setup.ts` : JestRestDocs 인스턴스 및 서버 설정
 - `tests/setup/teardown.ts` : 테스트 종료 후 문서 병합 및 임시 파일 정리
+
+## 예제 프로젝트
+
+프로젝트 저장소의 `example` 폴더에 Express 기반의 완전한 예제 프로젝트가 포함되어 있습니다. 이 예제는 사용자, 게시물, 댓글 API를 구현하고 JestRestDocs를 사용하여 API 문서를 자동으로 생성하는 방법을 보여줍니다.
+
+### 예제 기능
+
+- 사용자, 게시물, 댓글을 위한 Express API 구현
+- 도메인별로 구분된 테스트 파일
+- 성공 및 실패 케이스를 모두 포함한 테스트
+- OpenAPI 문서 자동 생성
+
+### 예제 실행 방법
+
+```bash
+# Express 서버 실행
+npm run example:server
+
+# 테스트 실행 및 문서 생성
+npm run example
+```
+
+생성된 문서는 `example/docs/openapi.json` 파일에서 확인할 수 있습니다.
 
 ## 기타
 
