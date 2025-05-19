@@ -15,7 +15,7 @@
   "scripts": {
     "build": "rollup -c && npm run build:types",
     "build:types": "tsc --emitDeclarationOnly",
-    "test": "jest",
+    "test": "jest --forceExit",
     "lint": "eslint 'src/**/*.{js,ts}' 'tests/**/*.{js,ts}'",
     "lint:fix": "eslint 'src/**/*.{js,ts}' 'tests/**/*.{js,ts}' --fix",
     "format": "prettier --write 'src/**/*.{js,ts}' 'tests/**/*.{js,ts}'",
@@ -24,7 +24,7 @@
     "prepublishOnly": "npm run build",
     "publish": "npm run build && npm publish",
     "semantic-release": "semantic-release",
-    "example": "jest --config example/jest.config.ts",
+    "example": "jest --config example/jest.config.ts --forceExit",
     "example:server": "ts-node example/src/server.ts"
   },
   "repository": {
