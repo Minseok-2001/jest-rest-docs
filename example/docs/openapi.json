@@ -1,0 +1,2180 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "블로그 API 문서",
+    "version": "1.0.0",
+    "description": "사용자, 게시물, 댓글에 대한 API 문서입니다."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "개발 서버"
+    }
+  ],
+  "paths": {
+    "/api/comments": {
+      "get": {
+        "tags": [
+          "댓글"
+        ],
+        "summary": "모든 댓글 목록 조회",
+        "description": "시스템에 등록된 모든 댓글 목록을 반환합니다.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_comments"
+                },
+                "examples": {
+                  "댓글 API GET /api/comments - 모든 댓글 조회": {
+                    "summary": "댓글 API GET /api/comments - 모든 댓글 조회",
+                    "value": {
+                      "comments": [
+                        {
+                          "id": "1",
+                          "postId": "1",
+                          "authorId": "2",
+                          "content": "좋은 게시물이네요!",
+                          "createdAt": "2025-05-19T08:22:24.264Z",
+                          "updatedAt": "2025-05-19T08:22:24.264Z"
+                        },
+                        {
+                          "id": "2",
+                          "postId": "1",
+                          "authorId": "1",
+                          "content": "감사합니다!",
+                          "createdAt": "2025-05-19T08:22:24.264Z",
+                          "updatedAt": "2025-05-19T08:22:24.264Z"
+                        },
+                        {
+                          "id": "3",
+                          "postId": "2",
+                          "authorId": "1",
+                          "content": "흥미로운 주제입니다.",
+                          "createdAt": "2025-05-19T08:22:24.264Z",
+                          "updatedAt": "2025-05-19T08:22:24.264Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "댓글"
+        ],
+        "summary": "필수 필드 누락 시 댓글 생성 오류",
+        "description": "새로운 댓글을 생성합니다.\n\n필수 필드가 누락된 경우 400 오류를 반환합니다.",
+        "parameters": [],
+        "requestBody": {
+          "description": "필수 필드가 누락된 경우 400 오류를 반환합니다.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "oneOf": [
+                              {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "postId": {
+                                        "type": "string"
+                                      },
+                                      "authorId": {
+                                        "type": "string"
+                                      },
+                                      "content": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "postId": {
+                                        "type": "string"
+                                      },
+                                      "content": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "postId": {
+                                    "type": "string"
+                                  },
+                                  "authorId": {
+                                    "type": "string"
+                                  },
+                                  "content": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "postId": {
+                                "type": "string"
+                              },
+                              "content": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "authorId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "postId": {
+                        "type": "string"
+                      },
+                      "content": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "postId": "1",
+                "content": "작성자 없는 댓글"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "201 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_POST_api_comments"
+                },
+                "examples": {
+                  "댓글 API POST /api/comments - 새 댓글 생성": {
+                    "summary": "댓글 API POST /api/comments - 새 댓글 생성",
+                    "value": {
+                      "comment": {
+                        "id": "9d419b80-9f41-4a6b-9941-b519bcecdcfe",
+                        "postId": "1",
+                        "authorId": "2",
+                        "content": "새 댓글 내용입니다.",
+                        "createdAt": "2025-05-19T08:22:24.497Z",
+                        "updatedAt": "2025-05-19T08:22:24.497Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_POST_api_comments_400"
+                },
+                "examples": {
+                  "댓글 API POST /api/comments - 필수 필드 누락 시 400 반환": {
+                    "summary": "댓글 API POST /api/comments - 필수 필드 누락 시 400 반환",
+                    "value": {
+                      "error": {
+                        "message": "필수 필드가 누락되었습니다",
+                        "status": 400
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/comments/{id}": {
+      "get": {
+        "tags": [
+          "댓글"
+        ],
+        "summary": "존재하지 않는 댓글 조회 시 오류",
+        "description": "특정 ID를 가진 댓글 정보를 반환합니다.\n\n존재하지 않는 ID로 댓글 조회 시 404 오류를 반환합니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "존재하지 않는 댓글 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "9999"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_comments_id"
+                },
+                "examples": {
+                  "댓글 API GET /api/comments/:id - 특정 댓글 조회": {
+                    "summary": "댓글 API GET /api/comments/:id - 특정 댓글 조회",
+                    "value": {
+                      "comment": {
+                        "id": "1",
+                        "postId": "1",
+                        "authorId": "2",
+                        "content": "좋은 게시물이네요!",
+                        "createdAt": "2025-05-19T08:22:24.264Z",
+                        "updatedAt": "2025-05-19T08:22:24.264Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_comments_id_404"
+                },
+                "examples": {
+                  "댓글 API GET /api/comments/:id - 존재하지 않는 댓글 조회 시 404 반환": {
+                    "summary": "댓글 API GET /api/comments/:id - 존재하지 않는 댓글 조회 시 404 반환",
+                    "value": {
+                      "error": {
+                        "message": "댓글을 찾을 수 없습니다",
+                        "status": 404
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "댓글"
+        ],
+        "summary": "댓글 내용 수정",
+        "description": "특정 ID의 댓글 내용을 수정합니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "수정할 댓글 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "2"
+          }
+        ],
+        "requestBody": {
+          "description": "특정 ID의 댓글 내용을 수정합니다.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "oneOf": [
+                              {
+                                "oneOf": [
+                                  {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "postId": {
+                                            "type": "string"
+                                          },
+                                          "authorId": {
+                                            "type": "string"
+                                          },
+                                          "content": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "postId": {
+                                            "type": "string"
+                                          },
+                                          "content": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "postId": {
+                                        "type": "string"
+                                      },
+                                      "authorId": {
+                                        "type": "string"
+                                      },
+                                      "content": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "postId": {
+                                    "type": "string"
+                                  },
+                                  "content": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "postId": {
+                                "type": "string"
+                              },
+                              "authorId": {
+                                "type": "string"
+                              },
+                              "content": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "content": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "content": "수정된 댓글 내용입니다."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_PUT_api_comments_id"
+                },
+                "examples": {
+                  "댓글 API PUT /api/comments/:id - 댓글 내용 수정": {
+                    "summary": "댓글 API PUT /api/comments/:id - 댓글 내용 수정",
+                    "value": {
+                      "comment": {
+                        "id": "2",
+                        "postId": "1",
+                        "authorId": "1",
+                        "content": "수정된 댓글 내용입니다.",
+                        "createdAt": "2025-05-19T08:22:24.264Z",
+                        "updatedAt": "2025-05-19T08:22:24.519Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "댓글"
+        ],
+        "summary": "댓글 삭제",
+        "description": "특정 ID의 댓글을 삭제합니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "삭제할 댓글 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "temp-id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "204 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_DELETE_api_comments_id"
+                },
+                "examples": {
+                  "댓글 API DELETE /api/comments/:id - 댓글 삭제": {
+                    "summary": "댓글 API DELETE /api/comments/:id - 댓글 삭제",
+                    "value": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/comments/post/{postId}": {
+      "get": {
+        "tags": [
+          "댓글"
+        ],
+        "summary": "게시물별 댓글 조회",
+        "description": "특정 게시물에 달린 모든 댓글을 조회합니다.",
+        "parameters": [
+          {
+            "name": "postId",
+            "in": "path",
+            "required": true,
+            "description": "게시물 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_comments_post_postId"
+                },
+                "examples": {
+                  "댓글 API GET /api/comments/post/:postId - 게시물별 댓글 조회": {
+                    "summary": "댓글 API GET /api/comments/post/:postId - 게시물별 댓글 조회",
+                    "value": {
+                      "comments": [
+                        {
+                          "id": "1",
+                          "postId": "1",
+                          "authorId": "2",
+                          "content": "좋은 게시물이네요!",
+                          "createdAt": "2025-05-19T08:22:24.264Z",
+                          "updatedAt": "2025-05-19T08:22:24.264Z"
+                        },
+                        {
+                          "id": "2",
+                          "postId": "1",
+                          "authorId": "1",
+                          "content": "수정된 댓글 내용입니다.",
+                          "createdAt": "2025-05-19T08:22:24.264Z",
+                          "updatedAt": "2025-05-19T08:22:24.519Z"
+                        },
+                        {
+                          "id": "9d419b80-9f41-4a6b-9941-b519bcecdcfe",
+                          "postId": "1",
+                          "authorId": "2",
+                          "content": "새 댓글 내용입니다.",
+                          "createdAt": "2025-05-19T08:22:24.497Z",
+                          "updatedAt": "2025-05-19T08:22:24.497Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/comments/author/{authorId}": {
+      "get": {
+        "tags": [
+          "댓글"
+        ],
+        "summary": "작성자별 댓글 조회",
+        "description": "특정 작성자가 작성한 모든 댓글을 조회합니다.",
+        "parameters": [
+          {
+            "name": "authorId",
+            "in": "path",
+            "required": true,
+            "description": "작성자 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_comments_author_authorId"
+                },
+                "examples": {
+                  "댓글 API GET /api/comments/author/:authorId - 작성자별 댓글 조회": {
+                    "summary": "댓글 API GET /api/comments/author/:authorId - 작성자별 댓글 조회",
+                    "value": {
+                      "comments": [
+                        {
+                          "id": "2",
+                          "postId": "1",
+                          "authorId": "1",
+                          "content": "수정된 댓글 내용입니다.",
+                          "createdAt": "2025-05-19T08:22:24.264Z",
+                          "updatedAt": "2025-05-19T08:22:24.519Z"
+                        },
+                        {
+                          "id": "3",
+                          "postId": "2",
+                          "authorId": "1",
+                          "content": "흥미로운 주제입니다.",
+                          "createdAt": "2025-05-19T08:22:24.264Z",
+                          "updatedAt": "2025-05-19T08:22:24.264Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "사용자"
+        ],
+        "summary": "모든 사용자 목록 조회",
+        "description": "시스템에 등록된 모든 사용자 목록을 반환합니다.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_users"
+                },
+                "examples": {
+                  "사용자 API GET /api/users - 모든 사용자 조회": {
+                    "summary": "사용자 API GET /api/users - 모든 사용자 조회",
+                    "value": {
+                      "users": [
+                        {
+                          "id": "1",
+                          "username": "user1",
+                          "email": "user1@example.com",
+                          "name": "사용자1",
+                          "createdAt": "2025-05-19T08:21:57.669Z",
+                          "updatedAt": "2025-05-19T08:21:57.669Z"
+                        },
+                        {
+                          "id": "2",
+                          "username": "user2",
+                          "email": "user2@example.com",
+                          "name": "사용자2",
+                          "createdAt": "2025-05-19T08:21:57.669Z",
+                          "updatedAt": "2025-05-19T08:21:57.669Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "사용자"
+        ],
+        "summary": "필수 필드 누락 시 사용자 생성 오류",
+        "description": "새로운 사용자를 생성합니다.\n\n필수 필드가 누락된 경우 400 오류를 반환합니다.",
+        "parameters": [],
+        "requestBody": {
+          "description": "필수 필드가 누락된 경우 400 오류를 반환합니다.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "authorId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "username": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "username": "invaliduser",
+                "name": "잘못된 사용자"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "201 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_POST_api_users"
+                },
+                "examples": {
+                  "사용자 API POST /api/users - 새 사용자 생성": {
+                    "summary": "사용자 API POST /api/users - 새 사용자 생성",
+                    "value": {
+                      "user": {
+                        "id": "466be0b8-2f40-4169-b592-86fde7c0940a",
+                        "username": "newuser",
+                        "email": "newuser@example.com",
+                        "name": "새로운 사용자",
+                        "createdAt": "2025-05-19T08:21:57.995Z",
+                        "updatedAt": "2025-05-19T08:21:57.995Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_POST_api_users_400"
+                },
+                "examples": {
+                  "사용자 API POST /api/users - 필수 필드 누락 시 400 반환": {
+                    "summary": "사용자 API POST /api/users - 필수 필드 누락 시 400 반환",
+                    "value": {
+                      "error": {
+                        "message": "필수 필드가 누락되었습니다",
+                        "status": 400
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}": {
+      "get": {
+        "tags": [
+          "사용자"
+        ],
+        "summary": "존재하지 않는 사용자 조회 시 오류",
+        "description": "특정 ID를 가진 사용자 정보를 반환합니다.\n\n존재하지 않는 ID로 사용자 조회 시 404 오류를 반환합니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "존재하지 않는 사용자 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "9999"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_users_id"
+                },
+                "examples": {
+                  "사용자 API GET /api/users/:id - 특정 사용자 조회": {
+                    "summary": "사용자 API GET /api/users/:id - 특정 사용자 조회",
+                    "value": {
+                      "user": {
+                        "id": "1",
+                        "username": "user1",
+                        "email": "user1@example.com",
+                        "name": "사용자1",
+                        "createdAt": "2025-05-19T08:21:57.669Z",
+                        "updatedAt": "2025-05-19T08:21:57.669Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_users_id_404"
+                },
+                "examples": {
+                  "사용자 API GET /api/users/:id - 존재하지 않는 사용자 조회 시 404 반환": {
+                    "summary": "사용자 API GET /api/users/:id - 존재하지 않는 사용자 조회 시 404 반환",
+                    "value": {
+                      "error": {
+                        "message": "사용자를 찾을 수 없습니다",
+                        "status": 404
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "사용자"
+        ],
+        "summary": "사용자 정보 수정",
+        "description": "특정 ID의 사용자 정보를 수정합니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "수정할 사용자 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "2"
+          }
+        ],
+        "requestBody": {
+          "description": "특정 ID의 사용자 정보를 수정합니다.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "authorId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "name": "수정된 사용자 이름"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_PUT_api_users_id"
+                },
+                "examples": {
+                  "사용자 API PUT /api/users/:id - 사용자 정보 수정": {
+                    "summary": "사용자 API PUT /api/users/:id - 사용자 정보 수정",
+                    "value": {
+                      "user": {
+                        "id": "2",
+                        "username": "user2",
+                        "email": "user2@example.com",
+                        "name": "수정된 사용자 이름",
+                        "createdAt": "2025-05-19T08:21:57.669Z",
+                        "updatedAt": "2025-05-19T08:21:58.024Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "사용자"
+        ],
+        "summary": "사용자 삭제",
+        "description": "특정 ID의 사용자를 삭제합니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "삭제할 사용자 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "temp-id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "204 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_DELETE_api_users_id"
+                },
+                "examples": {
+                  "사용자 API DELETE /api/users/:id - 사용자 삭제": {
+                    "summary": "사용자 API DELETE /api/users/:id - 사용자 삭제",
+                    "value": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/search": {
+      "get": {
+        "tags": [
+          "사용자"
+        ],
+        "summary": "이름으로 사용자 검색",
+        "description": "사용자 이름으로 검색합니다.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "검색할 사용자 이름",
+            "schema": {
+              "type": "string"
+            },
+            "example": "사용자"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_users_search"
+                },
+                "examples": {
+                  "사용자 API GET /api/users/search - 이름으로 사용자 검색": {
+                    "summary": "사용자 API GET /api/users/search - 이름으로 사용자 검색",
+                    "value": {
+                      "users": [
+                        {
+                          "id": "1",
+                          "username": "user1",
+                          "email": "user1@example.com",
+                          "name": "사용자1",
+                          "createdAt": "2025-05-19T08:21:57.669Z",
+                          "updatedAt": "2025-05-19T08:21:57.669Z"
+                        },
+                        {
+                          "id": "2",
+                          "username": "user2",
+                          "email": "user2@example.com",
+                          "name": "수정된 사용자 이름",
+                          "createdAt": "2025-05-19T08:21:57.669Z",
+                          "updatedAt": "2025-05-19T08:21:58.024Z"
+                        },
+                        {
+                          "id": "466be0b8-2f40-4169-b592-86fde7c0940a",
+                          "username": "newuser",
+                          "email": "newuser@example.com",
+                          "name": "새로운 사용자",
+                          "createdAt": "2025-05-19T08:21:57.995Z",
+                          "updatedAt": "2025-05-19T08:21:57.995Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/posts": {
+      "get": {
+        "tags": [
+          "게시물"
+        ],
+        "summary": "모든 게시물 목록 조회",
+        "description": "시스템에 등록된 모든 게시물 목록을 반환합니다.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_posts"
+                },
+                "examples": {
+                  "게시물 API GET /api/posts - 모든 게시물 조회": {
+                    "summary": "게시물 API GET /api/posts - 모든 게시물 조회",
+                    "value": {
+                      "posts": [
+                        {
+                          "id": "1",
+                          "title": "첫 번째 게시물",
+                          "content": "첫 번째 게시물의 내용입니다.",
+                          "authorId": "1",
+                          "createdAt": "2025-05-19T08:21:57.696Z",
+                          "updatedAt": "2025-05-19T08:21:57.696Z"
+                        },
+                        {
+                          "id": "2",
+                          "title": "두 번째 게시물",
+                          "content": "두 번째 게시물의 내용입니다.",
+                          "authorId": "2",
+                          "createdAt": "2025-05-19T08:21:57.696Z",
+                          "updatedAt": "2025-05-19T08:21:57.696Z"
+                        },
+                        {
+                          "id": "3",
+                          "title": "세 번째 게시물",
+                          "content": "세 번째 게시물의 내용입니다.",
+                          "authorId": "1",
+                          "createdAt": "2025-05-19T08:21:57.696Z",
+                          "updatedAt": "2025-05-19T08:21:57.696Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "게시물"
+        ],
+        "summary": "필수 필드 누락 시 게시물 생성 오류",
+        "description": "새로운 게시물을 생성합니다.\n\n필수 필드가 누락된 경우 400 오류를 반환합니다.",
+        "parameters": [],
+        "requestBody": {
+          "description": "필수 필드가 누락된 경우 400 오류를 반환합니다.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "authorId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "title": "제목만 있는 게시물"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "201 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_POST_api_posts"
+                },
+                "examples": {
+                  "게시물 API POST /api/posts - 새 게시물 생성": {
+                    "summary": "게시물 API POST /api/posts - 새 게시물 생성",
+                    "value": {
+                      "post": {
+                        "id": "58efa6f0-5eb4-4afd-8864-9bd9ce8ace05",
+                        "title": "새 게시물 제목",
+                        "content": "새 게시물 내용입니다.",
+                        "authorId": "1",
+                        "createdAt": "2025-05-19T08:21:57.996Z",
+                        "updatedAt": "2025-05-19T08:21:57.996Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_POST_api_posts_400"
+                },
+                "examples": {
+                  "게시물 API POST /api/posts - 필수 필드 누락 시 400 반환": {
+                    "summary": "게시물 API POST /api/posts - 필수 필드 누락 시 400 반환",
+                    "value": {
+                      "error": {
+                        "message": "필수 필드가 누락되었습니다",
+                        "status": 400
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/posts/{id}": {
+      "get": {
+        "tags": [
+          "게시물"
+        ],
+        "summary": "존재하지 않는 게시물 조회 시 오류",
+        "description": "특정 ID를 가진 게시물 정보를 반환합니다.\n\n존재하지 않는 ID로 게시물 조회 시 404 오류를 반환합니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "존재하지 않는 게시물 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "9999"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_posts_id"
+                },
+                "examples": {
+                  "게시물 API GET /api/posts/:id - 특정 게시물 조회": {
+                    "summary": "게시물 API GET /api/posts/:id - 특정 게시물 조회",
+                    "value": {
+                      "post": {
+                        "id": "1",
+                        "title": "첫 번째 게시물",
+                        "content": "첫 번째 게시물의 내용입니다.",
+                        "authorId": "1",
+                        "createdAt": "2025-05-19T08:21:57.696Z",
+                        "updatedAt": "2025-05-19T08:21:57.696Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_posts_id_404"
+                },
+                "examples": {
+                  "게시물 API GET /api/posts/:id - 존재하지 않는 게시물 조회 시 404 반환": {
+                    "summary": "게시물 API GET /api/posts/:id - 존재하지 않는 게시물 조회 시 404 반환",
+                    "value": {
+                      "error": {
+                        "message": "게시물을 찾을 수 없습니다",
+                        "status": 404
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "게시물"
+        ],
+        "summary": "게시물 내용 수정",
+        "description": "특정 ID의 게시물 내용을 수정합니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "수정할 게시물 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "2"
+          }
+        ],
+        "requestBody": {
+          "description": "특정 ID의 게시물 내용을 수정합니다.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "authorId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "postId": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "content": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "title": "수정된 게시물 제목",
+                "content": "수정된 게시물 내용입니다."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_PUT_api_posts_id"
+                },
+                "examples": {
+                  "게시물 API PUT /api/posts/:id - 게시물 내용 수정": {
+                    "summary": "게시물 API PUT /api/posts/:id - 게시물 내용 수정",
+                    "value": {
+                      "post": {
+                        "id": "2",
+                        "title": "수정된 게시물 제목",
+                        "content": "수정된 게시물 내용입니다.",
+                        "authorId": "2",
+                        "createdAt": "2025-05-19T08:21:57.696Z",
+                        "updatedAt": "2025-05-19T08:21:58.023Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "게시물"
+        ],
+        "summary": "게시물 삭제",
+        "description": "특정 ID의 게시물을 삭제합니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "삭제할 게시물 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "temp-id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "204 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_DELETE_api_posts_id"
+                },
+                "examples": {
+                  "게시물 API DELETE /api/posts/:id - 게시물 삭제": {
+                    "summary": "게시물 API DELETE /api/posts/:id - 게시물 삭제",
+                    "value": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/posts/author/{authorId}": {
+      "get": {
+        "tags": [
+          "게시물"
+        ],
+        "summary": "작성자별 게시물 조회",
+        "description": "특정 작성자가 작성한 모든 게시물을 조회합니다.",
+        "parameters": [
+          {
+            "name": "authorId",
+            "in": "path",
+            "required": true,
+            "description": "작성자 ID",
+            "schema": {
+              "type": "string"
+            },
+            "example": "1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_posts_author_authorId"
+                },
+                "examples": {
+                  "게시물 API GET /api/posts/author/:authorId - 작성자별 게시물 조회": {
+                    "summary": "게시물 API GET /api/posts/author/:authorId - 작성자별 게시물 조회",
+                    "value": {
+                      "posts": [
+                        {
+                          "id": "1",
+                          "title": "첫 번째 게시물",
+                          "content": "첫 번째 게시물의 내용입니다.",
+                          "authorId": "1",
+                          "createdAt": "2025-05-19T08:21:57.696Z",
+                          "updatedAt": "2025-05-19T08:21:57.696Z"
+                        },
+                        {
+                          "id": "3",
+                          "title": "세 번째 게시물",
+                          "content": "세 번째 게시물의 내용입니다.",
+                          "authorId": "1",
+                          "createdAt": "2025-05-19T08:21:57.696Z",
+                          "updatedAt": "2025-05-19T08:21:57.696Z"
+                        },
+                        {
+                          "id": "58efa6f0-5eb4-4afd-8864-9bd9ce8ace05",
+                          "title": "새 게시물 제목",
+                          "content": "새 게시물 내용입니다.",
+                          "authorId": "1",
+                          "createdAt": "2025-05-19T08:21:57.996Z",
+                          "updatedAt": "2025-05-19T08:21:57.996Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/posts/search": {
+      "get": {
+        "tags": [
+          "게시물"
+        ],
+        "summary": "제목으로 게시물 검색",
+        "description": "게시물 제목에 특정 키워드가 포함된 게시물을 검색합니다.",
+        "parameters": [
+          {
+            "name": "title",
+            "in": "query",
+            "required": true,
+            "description": "검색할 게시물 제목 키워드",
+            "schema": {
+              "type": "string"
+            },
+            "example": "게시물"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/API_GET_api_posts_search"
+                },
+                "examples": {
+                  "게시물 API GET /api/posts/search - 제목으로 게시물 검색": {
+                    "summary": "게시물 API GET /api/posts/search - 제목으로 게시물 검색",
+                    "value": {
+                      "posts": [
+                        {
+                          "id": "1",
+                          "title": "첫 번째 게시물",
+                          "content": "첫 번째 게시물의 내용입니다.",
+                          "authorId": "1",
+                          "createdAt": "2025-05-19T08:21:57.696Z",
+                          "updatedAt": "2025-05-19T08:21:57.696Z"
+                        },
+                        {
+                          "id": "2",
+                          "title": "수정된 게시물 제목",
+                          "content": "수정된 게시물 내용입니다.",
+                          "authorId": "2",
+                          "createdAt": "2025-05-19T08:21:57.696Z",
+                          "updatedAt": "2025-05-19T08:21:58.023Z"
+                        },
+                        {
+                          "id": "3",
+                          "title": "세 번째 게시물",
+                          "content": "세 번째 게시물의 내용입니다.",
+                          "authorId": "1",
+                          "createdAt": "2025-05-19T08:21:57.696Z",
+                          "updatedAt": "2025-05-19T08:21:57.696Z"
+                        },
+                        {
+                          "id": "58efa6f0-5eb4-4afd-8864-9bd9ce8ace05",
+                          "title": "새 게시물 제목",
+                          "content": "새 게시물 내용입니다.",
+                          "authorId": "1",
+                          "createdAt": "2025-05-19T08:21:57.996Z",
+                          "updatedAt": "2025-05-19T08:21:57.996Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "API_GET_api_comments": {
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "postId": {
+                  "type": "string"
+                },
+                "authorId": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_comments_id": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "postId": {
+                "type": "string"
+              },
+              "authorId": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_comments_id_404": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "API_POST_api_comments": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "postId": {
+                "type": "string"
+              },
+              "authorId": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "API_POST_api_comments_400": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "API_PUT_api_comments_id": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "postId": {
+                "type": "string"
+              },
+              "authorId": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "API_DELETE_api_comments_id": {
+        "type": "object",
+        "properties": {}
+      },
+      "API_GET_api_comments_post_postId": {
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "postId": {
+                  "type": "string"
+                },
+                "authorId": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_comments_author_authorId": {
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "postId": {
+                  "type": "string"
+                },
+                "authorId": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_users": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "username": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_users_id": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_users_id_404": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "API_POST_api_users": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "API_POST_api_users_400": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "API_PUT_api_users_id": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "API_DELETE_api_users_id": {
+        "type": "object",
+        "properties": {}
+      },
+      "API_GET_api_users_search": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "username": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_posts": {
+        "type": "object",
+        "properties": {
+          "posts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "authorId": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_posts_id": {
+        "type": "object",
+        "properties": {
+          "post": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              },
+              "authorId": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_posts_id_404": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "API_POST_api_posts": {
+        "type": "object",
+        "properties": {
+          "post": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              },
+              "authorId": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "API_POST_api_posts_400": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "API_PUT_api_posts_id": {
+        "type": "object",
+        "properties": {
+          "post": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              },
+              "authorId": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "API_DELETE_api_posts_id": {
+        "type": "object",
+        "properties": {}
+      },
+      "API_GET_api_posts_author_authorId": {
+        "type": "object",
+        "properties": {
+          "posts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "authorId": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "API_GET_api_posts_search": {
+        "type": "object",
+        "properties": {
+          "posts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "authorId": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
