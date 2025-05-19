@@ -14,7 +14,7 @@ import {
   deepMergeResponses,
 } from './utils/schemaUtils';
 
-const tempDir = path.resolve(process.cwd(), './temp-docs');
+const defaultTempDir = path.resolve(process.cwd(), './temp-docs');
 
 export class JestRestDocs {
   private openapi: Partial<OpenAPIV3.Document>;
@@ -25,23 +25,25 @@ export class JestRestDocs {
   private readonly serverInstance: http.Server;
   private currentMetadata?: ApiMetadata;
   private schemaCounter: number = 1; // Counter for unique schema names
+  private readonly tempDir: string;
 
   constructor(options: {
     outputDir: string;
     openapi: Partial<OpenAPIV3.Document>;
     serverInstance: http.Server;
     baseUrl?: string;
+    tempDir?: string;
   }) {
     this.outputDir = options.outputDir;
     this.openapi = options.openapi;
     this.baseUrl = options.baseUrl || 'http://localhost:3000';
     this.serverInstance = options.serverInstance;
     this.components = { schemas: {} };
+    this.tempDir = defaultTempDir;
     this.loadExistingDocs();
 
     fs.ensureDirSync(this.outputDir);
-    fs.ensureDirSync(tempDir);
-    fs.emptyDirSync(tempDir);
+    fs.ensureDirSync(this.tempDir);
   }
 
   /**
@@ -193,6 +195,26 @@ export class JestRestDocs {
       | undefined;
 
     const paramsMap = this.mergeParameters(pathTemplate, capture);
+    const newParams = (paramsMap as any)._uniqueParams || Array.from(paramsMap.values());
+    const existingParams = (existingOperation?.parameters as OpenAPIV3.ParameterObject[]) || [];
+
+    // 기존 + 새 parameters를 합치고 완전히 중복 제거 (name+in 기준)
+    const paramMap = new Map<string, OpenAPIV3.ParameterObject>();
+
+    // 기존 파라미터 추가
+    existingParams.forEach((param: OpenAPIV3.ParameterObject) => {
+      const key = `${param.in}:${param.name}`;
+      paramMap.set(key, param);
+    });
+
+    // 새 파라미터 추가 (동일한 키가 있으면 덮어씀)
+    newParams.forEach((param: OpenAPIV3.ParameterObject) => {
+      const key = `${param.in}:${param.name}`;
+      paramMap.set(key, param);
+    });
+
+    const uniqueParams = Array.from(paramMap.values());
+
     const requestBody = this.generateRequestBody(capture.request.body);
 
     const existingResponses: OpenAPIV3.ResponsesObject = existingOperation?.responses || {};
@@ -219,7 +241,7 @@ export class JestRestDocs {
       summary: this.currentMetadata?.summary,
       description: Array.from(descriptions).join('\n\n'), // Combine descriptions without duplication
       deprecated: this.currentMetadata?.deprecated,
-      parameters: Array.from(paramsMap.values()),
+      parameters: uniqueParams,
       security: this.currentMetadata?.security,
       requestBody,
       responses,
@@ -269,6 +291,16 @@ export class JestRestDocs {
       }
     });
 
+    // 완전히 동일한 파라미터 객체가 여러 번 들어가는 경우 중복 제거
+    const uniqueParams = Array.from(paramsMap.values()).filter(
+      (param, idx, arr) => arr.findIndex((p) => JSON.stringify(p) === JSON.stringify(param)) === idx
+    );
+
+    // Map 대신 중복 없는 배열을 반환하도록 수정 (호출부에서 parameters: uniqueParams로 사용)
+    // 하지만 기존 인터페이스를 유지하기 위해 Map을 그대로 반환하되, 사용 시 중복 없는 배열로 변환
+    // (아래에서 parameters: Array.from(paramsMap.values()) 대신 uniqueParams 사용)
+    // 실제 적용은 captureApiDoc에서 parameters 할당 시 uniqueParams로 대체
+    (paramsMap as any)._uniqueParams = uniqueParams;
     return paramsMap;
   }
 
@@ -283,11 +315,43 @@ export class JestRestDocs {
     const schema = inferSchema(body);
     if (!schema) return undefined;
 
+    // 기존 requestBody schema와 다르면 oneOf로 병합
+    // (이전 테스트에서 기록된 requestBody가 있으면 병합)
+    let mergedSchema = schema;
+    const lastOperation = Object.values(this.paths)
+      .flatMap((p) => Object.values(p))
+      .find(
+        (op): op is OpenAPIV3.OperationObject =>
+          !!(
+            op &&
+            typeof op === 'object' &&
+            'requestBody' in op &&
+            op.requestBody &&
+            'responses' in op
+          )
+      );
+    if (
+      lastOperation &&
+      lastOperation.requestBody &&
+      typeof lastOperation.requestBody === 'object' &&
+      !('$ref' in lastOperation.requestBody) &&
+      lastOperation.requestBody.content &&
+      lastOperation.requestBody.content['application/json'] &&
+      lastOperation.requestBody.content['application/json'].schema
+    ) {
+      const prevSchema = lastOperation.requestBody.content['application/json']
+        .schema as OpenAPIV3.SchemaObject;
+      if (JSON.stringify(prevSchema) !== JSON.stringify(schema)) {
+        // oneOf로 병합
+        mergedSchema = { oneOf: [prevSchema, schema] };
+      }
+    }
+
     return {
       description: this.currentMetadata?.description || 'Request body',
       content: {
         'application/json': {
-          schema,
+          schema: mergedSchema,
           example: body,
         },
       },
@@ -361,13 +425,16 @@ export class JestRestDocs {
    * Writes the temporary documentation to a file.
    */
   private async writeTemporaryDocs() {
-    const tempFilePath = path.join(tempDir, `docs-${process.pid}.json`);
-    const existingData = fs.existsSync(tempFilePath) ? await fs.readJson(tempFilePath) : {};
-    const newData = { ...existingData, paths: this.paths, components: this.components };
-
-    const tempFile = `${tempFilePath}.tmp`;
-    await fs.writeJson(tempFile, newData, { spaces: 2, mode: 0o644 });
-    await fs.rename(tempFile, tempFilePath);
+    const tempFilePath = path.join(this.tempDir, `docs-${process.pid}.json`);
+    try {
+      const existingData = fs.existsSync(tempFilePath) ? await fs.readJson(tempFilePath) : {};
+      const newData = { ...existingData, paths: this.paths, components: this.components };
+      const tempFile = `${tempFilePath}.tmp`;
+      await fs.writeJson(tempFile, newData, { spaces: 2, mode: 0o644 });
+      await fs.rename(tempFile, tempFilePath);
+    } catch (err) {
+      console.error('[JestRestDocs] 임시 파일 생성 실패:', err);
+    }
   }
 
   /**
@@ -409,19 +476,18 @@ export class JestRestDocs {
   async generateDocs() {
     const outputFilePath = path.join(this.outputDir, 'openapi.json');
 
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
+    if (!fs.existsSync(this.tempDir)) {
+      fs.mkdirSync(this.tempDir, { recursive: true });
     }
 
-    const files = await fs.readdir(tempDir);
+    const files = await fs.readdir(this.tempDir);
 
     const mergedPaths: Record<string, OpenAPIV3.PathItemObject> = { ...this.paths };
     const mergedComponents: OpenAPIV3.ComponentsObject = { ...this.components };
 
     for (const file of files) {
       if (file.startsWith('docs-') && file.endsWith('.json')) {
-        const filePath = path.join(tempDir, file);
-
+        const filePath = path.join(this.tempDir, file);
         try {
           const data = await fs.readJson(filePath);
           const paths = data.paths as Record<string, OpenAPIV3.PathItemObject>;
@@ -443,9 +509,18 @@ export class JestRestDocs {
                 const existingOperation = mergedPaths[path][methodKey] as OpenAPIV3.OperationObject;
                 const newOperation = operation as OpenAPIV3.OperationObject;
 
-                // Merge summaries
+                // Merge summaries without duplication
                 if (existingOperation.summary && newOperation.summary) {
-                  existingOperation.summary = `${existingOperation.summary}; ${newOperation.summary}`;
+                  // 세미콜론으로 분리된 summary 배열로 변환
+                  const existingSummaries = existingOperation.summary
+                    .split(';')
+                    .map((s) => s.trim());
+                  const newSummary = newOperation.summary.trim();
+
+                  // 중복 확인
+                  if (!existingSummaries.includes(newSummary)) {
+                    existingOperation.summary = `${existingOperation.summary}; ${newSummary}`;
+                  }
                 } else {
                   existingOperation.summary = existingOperation.summary || newOperation.summary;
                 }
@@ -462,12 +537,22 @@ export class JestRestDocs {
                 );
 
                 // Merge parameters
-                existingOperation.parameters = Array.from(
-                  new Set([
-                    ...(existingOperation.parameters || []),
-                    ...(newOperation.parameters || []),
-                  ])
-                );
+                const paramMap = new Map<string, any>();
+
+                // 기존 파라미터 맵에 추가
+                (existingOperation.parameters || []).forEach((param: any) => {
+                  const key = `${param.in}:${param.name}`;
+                  paramMap.set(key, param);
+                });
+
+                // 새 파라미터 추가 (동일한 키가 있으면 덮어씀)
+                (newOperation.parameters || []).forEach((param: any) => {
+                  const key = `${param.in}:${param.name}`;
+                  paramMap.set(key, param);
+                });
+
+                // 중복 제거된 파라미터 배열로 변환
+                existingOperation.parameters = Array.from(paramMap.values());
               }
             });
           }
@@ -506,7 +591,7 @@ export class JestRestDocs {
     };
 
     await fs.writeJson(outputFilePath, spec, { spaces: 2, mode: 0o644 });
-    await Promise.all(files.map((file) => fs.unlink(path.join(tempDir, file))));
+    await Promise.all(files.map((file) => fs.unlink(path.join(this.tempDir, file))));
 
     console.log(`OpenAPI documentation written to ${outputFilePath}`);
   }

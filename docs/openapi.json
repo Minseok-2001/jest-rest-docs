@@ -1,0 +1,465 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "User Management API",
+    "version": "1.0.0",
+    "description": "사용자 관리를 위한 RESTful API 문서입니다."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "API Server"
+    }
+  ],
+  "paths": {
+    "/api/users": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "새로운 사용자 생성",
+        "description": "신규 사용자를 생성합니다. 이메일은 고유해야 하며, 기본 정보와 주소 정보를 함께 저장할 수 있습니다.",
+        "parameters": [],
+        "requestBody": {
+          "description": "신규 사용자를 생성합니다. 이메일은 고유해야 하며, 기본 정보와 주소 정보를 함께 저장할 수 있습니다.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "age": {
+                        "type": "number"
+                      },
+                      "address": {
+                        "type": "object",
+                        "properties": {
+                          "street": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "number"
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "age": {
+                        "type": "number"
+                      },
+                      "address": {
+                        "type": "object",
+                        "properties": {
+                          "street": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "name": 123,
+                "email": "hong123@example.com",
+                "age": 30,
+                "address": {
+                  "street": "테헤란로",
+                  "city": "서울"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "201 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User_API_Integration_Tests_User_CRUD_Operations_should_create_a_new_user"
+                },
+                "examples": {
+                  "User API Integration Tests User CRUD Operations should create a new user": {
+                    "summary": "User API Integration Tests User CRUD Operations should create a new user",
+                    "value": {
+                      "id": 1,
+                      "name": "홍길동",
+                      "email": "hong@example.com",
+                      "age": 30,
+                      "address": {
+                        "street": "테헤란로",
+                        "city": "서울"
+                      },
+                      "status": "active"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User_API_Integration_Tests_User_CRUD_Operations_should_fail_to_create_user_with_non_string_name"
+                },
+                "examples": {
+                  "User API Integration Tests User CRUD Operations should fail to create user with non-string name": {
+                    "summary": "User API Integration Tests User CRUD Operations should fail to create user with non-string name",
+                    "value": {
+                      "error": "Name must be a string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/search": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "사용자 검색",
+        "description": "여러 조건으로 사용자를 검색할 수 있습니다.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "이름 검색 (부분 일치)",
+            "schema": {
+              "type": "string"
+            },
+            "example": "홍"
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "description": "도시",
+            "schema": {
+              "type": "string"
+            },
+            "example": "서울"
+          },
+          {
+            "name": "minAge",
+            "in": "query",
+            "description": "최소 나이",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 20
+          },
+          {
+            "name": "maxAge",
+            "in": "query",
+            "description": "최대 나이",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 40
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User_API_Integration_Tests_User_CRUD_Operations_should_search_users_by_multiple_criteria"
+                },
+                "examples": {
+                  "User API Integration Tests User CRUD Operations should search users by multiple criteria": {
+                    "summary": "User API Integration Tests User CRUD Operations should search users by multiple criteria",
+                    "value": [
+                      {
+                        "id": 1,
+                        "name": "홍길동",
+                        "email": "hong@example.com",
+                        "age": 30,
+                        "address": {
+                          "street": "테헤란로",
+                          "city": "서울"
+                        },
+                        "status": "active"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}": {
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "사용자 정보 부분 수정",
+        "description": "사용자 정보를 부분적으로 수정합니다. 제공된 필드만 업데이트되며, 나머지는 기존 값이 유지됩니다.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "사용자 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": "1"
+          }
+        ],
+        "requestBody": {
+          "description": "사용자 정보를 부분적으로 수정합니다. 제공된 필드만 업데이트되며, 나머지는 기존 값이 유지됩니다.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "age": {
+                            "type": "number"
+                          },
+                          "address": {
+                            "type": "object",
+                            "properties": {
+                              "street": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "number"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "age": {
+                            "type": "number"
+                          },
+                          "address": {
+                            "type": "object",
+                            "properties": {
+                              "street": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "address": {
+                        "type": "object",
+                        "properties": {
+                          "street": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "name": "홍길동 (수정됨)",
+                "address": {
+                  "street": "강남대로"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User_API_Integration_Tests_should_update_user_partially"
+                },
+                "examples": {
+                  "User API Integration Tests should update user partially": {
+                    "summary": "User API Integration Tests should update user partially",
+                    "value": {
+                      "id": 1,
+                      "name": "홍길동 (수정됨)",
+                      "email": "hong@example.com",
+                      "age": 30,
+                      "address": {
+                        "street": "강남대로",
+                        "city": "서울"
+                      },
+                      "status": "active"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "User_API_Integration_Tests_User_CRUD_Operations_should_create_a_new_user": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "age": {
+            "type": "number"
+          },
+          "address": {
+            "type": "object",
+            "properties": {
+              "street": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              }
+            }
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "User_API_Integration_Tests_User_CRUD_Operations_should_fail_to_create_user_with_non_string_name": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "User_API_Integration_Tests_User_CRUD_Operations_should_search_users_by_multiple_criteria": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "number"
+            },
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "age": {
+              "type": "number"
+            },
+            "address": {
+              "type": "object",
+              "properties": {
+                "street": {
+                  "type": "string"
+                },
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "User_API_Integration_Tests_should_update_user_partially": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "age": {
+            "type": "number"
+          },
+          "address": {
+            "type": "object",
+            "properties": {
+              "street": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              }
+            }
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

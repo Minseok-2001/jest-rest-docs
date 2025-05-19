@@ -21,7 +21,8 @@
     "format": "prettier --write 'src/**/*.{js,ts}' 'tests/**/*.{js,ts}'",
     "prepare": "husky install",
     "type-check": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "publish": "npm run build && npm publish"
   },
   "repository": {
     "type": "git",

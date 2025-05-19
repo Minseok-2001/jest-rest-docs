@@ -35,6 +35,35 @@ describe('User API Integration Tests', () => {
       });
     });
 
+    it('should fail to create user with non-string name', async () => {
+      await docs.test({
+        method: 'POST',
+        path: '/api/users',
+        metadata: {
+          tags: ['Users'],
+          summary: '새로운 사용자 생성',
+          description:
+            '신규 사용자를 생성합니다. 이메일은 고유해야 하며, 기본 정보와 주소 정보를 함께 저장할 수 있습니다.',
+        },
+        callback: async (request) => {
+          const response = await request
+            .post('/api/users')
+            .send({
+              name: 123,
+              email: 'hong123@example.com',
+              age: 30,
+              address: {
+                street: '테헤란로',
+                city: '서울',
+              },
+            })
+            .expect(400);
+
+          expect(response.body.error).toBe('Name must be a string');
+        },
+      });
+    });
+
     it('should search users by multiple criteria', async () => {
       await docs.test({
         method: 'GET',

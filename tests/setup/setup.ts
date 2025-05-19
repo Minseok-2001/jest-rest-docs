@@ -1,10 +1,12 @@
 import { JestRestDocs } from '../../src';
 import app from './test-app';
+import path from 'path';
 
 const server = app.listen(0);
 
 export const docs = new JestRestDocs({
-  outputDir: 'build/docs',
+  outputDir: 'docs',
+  tempDir: path.join('docs', 'temp-docs'),
   openapi: {
     info: {
       title: 'User Management API',
